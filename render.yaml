@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: bpotime
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        value: Host=ep-aged-haze-b3281h9j-pooler.c-4.ap-southeast-1.aws.neon.tech; Database=neondb; Username=neondb_owner; Password=npg_tm6YPEOdFb2G; SSL Mode=VerifyFull; Channel Binding=Require;
+      - key: JwtSettings__Secret
+        value: super-secret-key-that-is-at-least-32-bytes-long!
+      - key: JwtSettings__Issuer
+        value: BPOTime
+      - key: JwtSettings__Audience
+        value: BPOTimeFrontend

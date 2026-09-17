@@ -1,0 +1,6 @@
+@BPOTime.Api_HostAddress = http://localhost:5246
+
+GET {{BPOTime.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

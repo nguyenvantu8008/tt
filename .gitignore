@@ -1,0 +1,28 @@
+## Visual Studio & Rider
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+## Build outputs
+**/bin/
+**/obj/
+/out/
+*.log
+
+## Node & Frontend
+**/node_modules/
+bpotime-web/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+## Local Tools & Binaries
+cloudflared.exe
+*.exe
+
+## Environment and logs
+logs/
+*.local
