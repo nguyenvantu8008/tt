@@ -40,7 +40,12 @@ public static class AttendanceEndpoints
                     EmployeeDepartment = a.Employee.Department,
                     a.ProjectId,
                     ProjectCode = a.Project.Code,
+                    ProjectName = a.Project.Name,
                     ProjectColor = a.Project.Color,
+                    ProjectAddress = a.Project.Address,
+                    ProjectLatitude = a.Project.Latitude,
+                    ProjectLongitude = a.Project.Longitude,
+                    ProjectRadius = a.Project.AllowedRadiusMeters,
                     a.ShiftId,
                     ShiftCode = a.Shift.Code,
                     ShiftName = a.Shift.Name,
@@ -53,6 +58,8 @@ public static class AttendanceEndpoints
                     a.Notes,
                     a.IsGpsVerified,
                     a.DistanceToProjectMeters,
+                    a.CheckInLatitude,
+                    a.CheckInLongitude,
                     a.CheckInDevice
                 })
                 .ToListAsync();
@@ -80,7 +87,12 @@ public static class AttendanceEndpoints
                     EmployeeDepartment = a.Employee.Department,
                     a.ProjectId,
                     ProjectCode = a.Project.Code,
+                    ProjectName = a.Project.Name,
                     ProjectColor = a.Project.Color,
+                    ProjectAddress = a.Project.Address,
+                    ProjectLatitude = a.Project.Latitude,
+                    ProjectLongitude = a.Project.Longitude,
+                    ProjectRadius = a.Project.AllowedRadiusMeters,
                     a.ShiftId,
                     ShiftCode = a.Shift.Code,
                     ShiftName = a.Shift.Name,
@@ -93,6 +105,8 @@ public static class AttendanceEndpoints
                     a.Notes,
                     a.IsGpsVerified,
                     a.DistanceToProjectMeters,
+                    a.CheckInLatitude,
+                    a.CheckInLongitude,
                     a.CheckInDevice
                 })
                 .ToListAsync();
@@ -122,6 +136,8 @@ public static class AttendanceEndpoints
                     a.Notes,
                     a.IsGpsVerified,
                     a.DistanceToProjectMeters,
+                    a.CheckInLatitude,
+                    a.CheckInLongitude,
                     a.CheckInDevice,
                     ProjectName = a.Project.Name,
                     ProjectCode = a.Project.Code,
@@ -132,7 +148,7 @@ public static class AttendanceEndpoints
             return Results.Ok(history);
         });
 
-        // 2. Personal Check-In with GPS Geofencing
+        // 2. Personal / Kiosk Check-In with Branch GPS Geofencing (Default 20m Radius)
         group.MapPost("/check-in", async ([FromBody] CheckInRequest request, ApplicationDbContext db) =>
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -152,45 +168,74 @@ public static class AttendanceEndpoints
 
             if (projectId == null || shiftId == null)
             {
-                return Results.BadRequest(new { message = "Nhân viên chưa được phân công Dự án hoặc Ca làm việc." });
+                return Results.BadRequest(new { message = "Nhân viên chưa được phân công Chi nhánh/Dự án hoặc Ca làm việc." });
             }
 
-            // GPS Geofencing Check
+            // Kiểm tra định vị GPS thực tế của Chi nhánh / Dự án
             var project = await db.Projects.FindAsync(projectId);
             double? distance = null;
             bool isGpsVerified = false;
+            var finalNotes = request.Notes ?? string.Empty;
+            var defaultDevice = request.Device ?? "Kiosk Hiện Trường";
 
-            if (request.IsRemoteLeader == true)
+            if (project != null && project.Latitude.HasValue && project.Longitude.HasValue)
             {
-                // Đội trưởng duyệt/điểm danh từ xa (Ủy quyền không bị chặn GPS)
-                isGpsVerified = true;
-                distance = null;
-                Serilog.Log.Information("[KIOSK_REMOTE_CHECKIN] Đội trưởng ủy quyền điểm danh từ xa cho {Emp} tại dự án {Proj}", employee.FullName, project?.Code);
-            }
-            else if (project != null && project.RequireGps && project.Latitude.HasValue && project.Longitude.HasValue)
-            {
-                if (!request.Latitude.HasValue || !request.Longitude.HasValue)
+                var allowedRadius = project.AllowedRadiusMeters > 0 ? project.AllowedRadiusMeters : 20;
+
+                if (request.Latitude.HasValue && request.Longitude.HasValue)
                 {
-                    return Results.BadRequest(new 
-                    { 
-                        message = "Dự án yêu cầu bật định vị GPS. Vui lòng cho phép quyền vị trí trên điện thoại để chấm công.",
-                        code = "GPS_REQUIRED"
-                    });
-                }
+                    distance = CalculateDistanceMeters(request.Latitude.Value, request.Longitude.Value, project.Latitude.Value, project.Longitude.Value);
+                    var distanceRounded = Math.Round(distance.Value);
 
-                distance = CalculateDistanceMeters(request.Latitude.Value, request.Longitude.Value, project.Latitude.Value, project.Longitude.Value);
-                if (distance.Value > project.AllowedRadiusMeters)
+                    if (distance.Value <= allowedRadius)
+                    {
+                        // TH1: Nhân viên trong bán kính cho phép (mặc định <= 20m) -> Chấm công bình thường
+                        isGpsVerified = true;
+                        if (string.IsNullOrWhiteSpace(request.Notes))
+                        {
+                            finalNotes = $"[Tại chi nhánh {project.Code}] (Cách tâm {distanceRounded}m)";
+                        }
+                    }
+                    else
+                    {
+                        // TH2: Nhân viên ngoài bán kính (> 20m) -> BẮT BUỘC phải có lý do giải trình (Công tác / Khác)
+                        var reason = !string.IsNullOrWhiteSpace(request.Reason) 
+                            ? request.Reason.Trim() 
+                            : (!string.IsNullOrWhiteSpace(request.Notes) ? request.Notes.Trim() : null);
+
+                        if (string.IsNullOrWhiteSpace(reason))
+                        {
+                            return Results.BadRequest(new
+                            {
+                                message = $"Bạn đang cách chi nhánh {project.Name} {distanceRounded}m (vượt quá bán kính quy định {allowedRadius}m). Vui lòng chọn chế độ 'Đi công tác' hoặc 'Vị trí khác' và nhập lý do giải trình để được chấm công.",
+                                code = "GPS_REASON_REQUIRED",
+                                distanceMeters = distanceRounded,
+                                allowedRadiusMeters = allowedRadius,
+                                projectName = project.Name
+                            });
+                        }
+
+                        isGpsVerified = false;
+                        var modeLabel = (request.CheckInMode?.ToUpper()) switch
+                        {
+                            "BUSINESS_TRIP" => "Đi công tác",
+                            "OTHER" => "Vị trí khác",
+                            _ => "Ngoài chi nhánh"
+                        };
+
+                        finalNotes = $"[{modeLabel} - Cách {distanceRounded}m] {reason}";
+                        defaultDevice = $"{defaultDevice} ({modeLabel})";
+                        Serilog.Log.Information("[REMOTE_CHECKIN] Nhân sự {Emp} check-in ngoài bán kính {Dist}m với lý do: {Reason}", employee.FullName, distanceRounded, reason);
+                    }
+                }
+                else if (project.RequireGps)
                 {
                     return Results.BadRequest(new
                     {
-                        message = $"Bạn đang cách dự án {Math.Round(distance.Value)}m (vượt quá bán kính cho phép {project.AllowedRadiusMeters}m). Vui lòng di chuyển vào vị trí dự án để dập thẻ.",
-                        code = "GPS_OUT_OF_BOUNDS",
-                        distanceMeters = Math.Round(distance.Value),
-                        allowedRadiusMeters = project.AllowedRadiusMeters
+                        message = "Chi nhánh yêu cầu bật định vị GPS. Vui lòng cho phép quyền truy cập vị trí trên thiết bị để hệ thống kiểm tra khoảng cách.",
+                        code = "GPS_REQUIRED"
                     });
                 }
-
-                isGpsVerified = true;
             }
 
             var existing = await db.Attendances
@@ -199,18 +244,13 @@ public static class AttendanceEndpoints
             var isLate = employee.Shift != null && nowTime > TimeOnly.FromTimeSpan(employee.Shift.StartTime.Add(TimeSpan.FromMinutes(15)));
             var status = isLate ? AttendanceStatus.Late : AttendanceStatus.Present;
 
-            var defaultDevice = request.IsRemoteLeader == true ? "Kiosk Remote (Đội trưởng ủy quyền từ xa)" : (request.Device ?? "Smartphone PWA");
-            var finalNotes = request.IsRemoteLeader == true 
-                ? (string.IsNullOrWhiteSpace(request.Notes) ? "[Đội trưởng ủy quyền từ xa]" : $"[Ủy quyền từ xa] {request.Notes}")
-                : request.Notes;
-
             if (existing != null)
             {
                 existing.CheckInTime ??= nowTime;
                 existing.Status = status;
                 existing.CheckInLatitude = request.Latitude;
                 existing.CheckInLongitude = request.Longitude;
-                existing.DistanceToProjectMeters = distance;
+                existing.DistanceToProjectMeters = distance.HasValue ? Math.Round(distance.Value) : null;
                 existing.IsGpsVerified = isGpsVerified;
                 existing.CheckInDevice = defaultDevice;
                 existing.CheckedInBy = request.CheckedInBy;
@@ -233,7 +273,7 @@ public static class AttendanceEndpoints
                     Notes = finalNotes,
                     CheckInLatitude = request.Latitude,
                     CheckInLongitude = request.Longitude,
-                    DistanceToProjectMeters = distance,
+                    DistanceToProjectMeters = distance.HasValue ? Math.Round(distance.Value) : null,
                     IsGpsVerified = isGpsVerified,
                     CheckInDevice = defaultDevice,
                     CheckedInBy = request.CheckedInBy,
@@ -250,7 +290,8 @@ public static class AttendanceEndpoints
                 time = nowTime.ToString("HH:mm:ss"),
                 status = existing.Status.ToString().ToUpper(),
                 isGpsVerified,
-                distanceMeters = distance.HasValue ? Math.Round(distance.Value) : (double?)null
+                distanceMeters = distance.HasValue ? Math.Round(distance.Value) : (double?)null,
+                notes = finalNotes
             });
         });
 
@@ -716,7 +757,9 @@ public record CheckInRequest(
     double? AccuracyMeters = null,
     string? Device = null,
     Guid? CheckedInBy = null,
-    bool? IsRemoteLeader = false
+    bool? IsRemoteLeader = false,
+    string? CheckInMode = null,
+    string? Reason = null
 );
 
 public record CheckOutRequest(Guid EmployeeId);

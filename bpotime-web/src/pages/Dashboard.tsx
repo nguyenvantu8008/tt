@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
-  CalendarDays
+  CalendarDays,
+  MapPin,
+  ExternalLink
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -440,6 +442,7 @@ export default function Dashboard() {
                   <th className="pb-3">Ca Làm</th>
                   <th className="pb-3 text-center">Giờ Vào</th>
                   <th className="pb-3 text-center">Giờ Ra</th>
+                  <th className="pb-3 text-center">Vị trí GPS</th>
                   <th className="pb-3 text-center">Trạng Thái</th>
                   <th className="pb-3 text-right pr-1">Thời Gian</th>
                 </tr>
@@ -447,7 +450,7 @@ export default function Dashboard() {
               <tbody className="divide-y divide-slate-100">
                 {filteredAttendance.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-slate-400">
+                    <td colSpan={8} className="py-10 text-center text-slate-400">
                       <Clock className="h-6 w-6 mx-auto mb-1.5 opacity-30 text-slate-400" />
                       <p className="font-normal text-xs">Chưa có dữ liệu điểm danh phù hợp.</p>
                     </td>
@@ -503,6 +506,34 @@ export default function Dashboard() {
                         </td>
                         <td className="py-3 text-center font-mono font-medium text-slate-800">
                           {att.checkOut || '--:--'}
+                        </td>
+                        <td className="py-3 text-center">
+                          {att.checkInLatitude && att.checkInLongitude ? (
+                            <div className="flex flex-col items-center gap-1">
+                              {att.distanceToProjectMeters !== null && att.distanceToProjectMeters !== undefined ? (
+                                att.distanceToProjectMeters <= (proj?.allowedRadiusMeters || 20) ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium text-[10px] border border-emerald-100">
+                                    <MapPin className="h-2.5 w-2.5" /> {att.distanceToProjectMeters}m
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                                    <AlertTriangle className="h-2.5 w-2.5" /> {att.distanceToProjectMeters > 1000 ? `${(att.distanceToProjectMeters / 1000).toFixed(1)}km` : `${att.distanceToProjectMeters}m`}
+                                  </span>
+                                )
+                              ) : null}
+                              <a
+                                href={`https://www.google.com/maps?q=${att.checkInLatitude},${att.checkInLongitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 hover:text-blue-800 underline font-medium"
+                                title="Xem trên Google Maps"
+                              >
+                                <ExternalLink className="h-2.5 w-2.5" /> Bản đồ
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-[11px]">-</span>
+                          )}
                         </td>
                         <td className="py-3 text-center">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${

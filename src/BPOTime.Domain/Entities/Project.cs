@@ -13,7 +13,7 @@ public class Project
     // GPS Geofencing configuration for remote/onsite projects
     public double? Latitude { get; set; } // e.g. 21.028511
     public double? Longitude { get; set; } // e.g. 105.854444
-    public int AllowedRadiusMeters { get; set; } = 150; // Default 150m radius
+    public int AllowedRadiusMeters { get; set; } = 20; // Default 20m radius (Admin có thể tùy chỉnh)
     public bool RequireGps { get; set; } = true;
     public string? Address { get; set; }
 

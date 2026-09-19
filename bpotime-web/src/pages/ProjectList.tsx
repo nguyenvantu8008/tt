@@ -42,10 +42,10 @@ export default function ProjectList() {
   const [name, setName] = useState('')
   const [client, setClient] = useState('')
   const [color, setColor] = useState('#2563EB')
-  const [requireGps, setRequireGps] = useState(false)
+  const [requireGps, setRequireGps] = useState(true)
   const [lat, setLat] = useState('')
   const [lng, setLng] = useState('')
-  const [radius, setRadius] = useState('150')
+  const [radius, setRadius] = useState('20')
   const [address, setAddress] = useState('')
 
   // Edit Project Modal
@@ -55,10 +55,10 @@ export default function ProjectList() {
   const [editClient, setEditClient] = useState('')
   const [editColor, setEditColor] = useState('#2563EB')
   const [editStatus, setEditStatus] = useState('ACTIVE')
-  const [editRequireGps, setEditRequireGps] = useState(false)
+  const [editRequireGps, setEditRequireGps] = useState(true)
   const [editLat, setEditLat] = useState('')
   const [editLng, setEditLng] = useState('')
-  const [editRadius, setEditRadius] = useState('150')
+  const [editRadius, setEditRadius] = useState('20')
   const [editAddress, setEditAddress] = useState('')
 
   // Members Management Modal
@@ -193,7 +193,7 @@ export default function ProjectList() {
         await axios.put(`/api/projects/${newProjId}/gps`, {
           latitude: parseFloat(lat),
           longitude: parseFloat(lng),
-          allowedRadiusMeters: parseInt(radius) || 150,
+          allowedRadiusMeters: parseInt(radius) || 20,
           requireGps,
           address: address.trim() || null
         })
@@ -204,6 +204,7 @@ export default function ProjectList() {
       setClient('')
       setLat('')
       setLng('')
+      setRadius('20')
       setAddress('')
       setModalOpen(false)
 
@@ -228,7 +229,7 @@ export default function ProjectList() {
     setEditRequireGps(proj.requireGps || false)
     setEditLat(proj.latitude ? String(proj.latitude) : '')
     setEditLng(proj.longitude ? String(proj.longitude) : '')
-    setEditRadius(proj.allowedRadiusMeters ? String(proj.allowedRadiusMeters) : '150')
+    setEditRadius(proj.allowedRadiusMeters ? String(proj.allowedRadiusMeters) : '20')
     setEditAddress(proj.address || '')
     setEditModalOpen(true)
   }
@@ -247,7 +248,7 @@ export default function ProjectList() {
         status: editStatus,
         latitude: editLat ? parseFloat(editLat) : null,
         longitude: editLng ? parseFloat(editLng) : null,
-        allowedRadiusMeters: editRadius ? parseInt(editRadius) : 150,
+        allowedRadiusMeters: editRadius ? parseInt(editRadius) : 20,
         requireGps: editRequireGps,
         address: editAddress.trim() || null
       })
@@ -494,16 +495,28 @@ export default function ProjectList() {
                       </div>
 
                       {hasGps ? (
-                        <div className="text-[11px] text-slate-600 flex items-center justify-between font-mono">
-                          <span>{proj.latitude.toFixed(5)}, {proj.longitude.toFixed(5)}</span>
-                          <span className="text-blue-600 font-sans font-medium">Bán kính: {proj.allowedRadiusMeters || 150}m</span>
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] text-slate-600 flex items-center justify-between font-mono">
+                            <span>{proj.latitude.toFixed(5)}, {proj.longitude.toFixed(5)}</span>
+                            <span className="text-indigo-700 bg-indigo-50 border border-indigo-200/60 font-sans font-bold px-1.5 py-0.5 rounded-md text-[10px]">
+                              Bán kính: {proj.allowedRadiusMeters || 20}m
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                            <span className="text-slate-500 truncate max-w-[180px]">{proj.address || 'Địa chỉ chi nhánh'}</span>
+                            <a 
+                              href={`https://www.google.com/maps?q=${proj.latitude},${proj.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 shrink-0 underline"
+                            >
+                              <Navigation className="h-3 w-3" /> Mở Maps
+                            </a>
+                          </div>
                         </div>
                       ) : (
-                        <p className="text-[11px] text-amber-600">Chưa cài đặt tọa độ công trường.</p>
-                      )}
-
-                      {proj.address && (
-                        <p className="text-[11px] text-slate-400 truncate">Địa chỉ: {proj.address}</p>
+                        <p className="text-[11px] text-amber-600">Chưa cài đặt tọa độ chi nhánh.</p>
                       )}
                     </div>
 
@@ -608,23 +621,35 @@ export default function ProjectList() {
 
                 {/* GPS Settings Box */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-800 flex items-center gap-2 cursor-pointer">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="font-bold text-slate-800 flex items-center gap-2 cursor-pointer text-xs">
                       <input 
                         type="checkbox" 
                         checked={requireGps} 
                         onChange={e => setRequireGps(e.target.checked)}
-                        className="rounded text-blue-600 h-4 w-4"
+                        className="rounded text-indigo-600 h-4 w-4"
                       />
-                      Bắt buộc định vị GPS Geofencing
+                      Định vị GPS thực tế chi nhánh
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleAutoDetectGpsCreate}
-                      className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 underline"
-                    >
-                      <Navigation className="h-3 w-3" /> Lấy GPS hiện tại của tôi
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {lat && lng && (
+                        <a
+                          href={`https://www.google.com/maps?q=${lat},${lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 underline"
+                        >
+                          <MapPin className="h-3 w-3" /> Kiểm tra Google Maps
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectGpsCreate}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 underline"
+                      >
+                        <Navigation className="h-3 w-3" /> Lấy GPS hiện tại
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -651,27 +676,33 @@ export default function ProjectList() {
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Bán kính (m)</label>
+                      <label className="text-[11px] text-slate-500 block mb-1">
+                        Bán kính (m) <span className="text-indigo-600 font-bold">*</span>
+                      </label>
                       <input 
                         type="number" 
-                        placeholder="150"
+                        placeholder="20"
                         value={radius} 
                         onChange={e => setRadius(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border rounded-lg bg-white font-mono text-xs"
+                        className="w-full px-2.5 py-1.5 border rounded-lg bg-white font-mono text-xs font-semibold text-indigo-700"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ công trường</label>
+                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ thực tế chi nhánh</label>
                     <input 
                       type="text" 
-                      placeholder="e.g. Tòa nhà Saigon Centre, Lê Lợi, Q1"
+                      placeholder="e.g. Tòa nhà Keangnam, Mễ Trì, Nam Từ Liêm, Hà Nội"
                       value={address} 
                       onChange={e => setAddress(e.target.value)}
                       className="w-full px-2.5 py-1.5 border rounded-lg bg-white text-xs"
                     />
                   </div>
+
+                  <p className="text-[10px] text-slate-400 italic">
+                    * Mặc định 20m (Admin có thể thiết lập giá trị tùy ý). Nhân viên đứng xa quá bán kính này sẽ bắt buộc chuyển sang chế độ Đi công tác/Khác và phải nhập lý do giải trình.
+                  </p>
                 </div>
 
                 <div className="pt-3 flex items-center justify-end gap-2.5 border-t">
@@ -754,23 +785,35 @@ export default function ProjectList() {
 
                 {/* GPS Settings Box */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-800 flex items-center gap-2 cursor-pointer">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="font-bold text-slate-800 flex items-center gap-2 cursor-pointer text-xs">
                       <input 
                         type="checkbox" 
                         checked={editRequireGps} 
                         onChange={e => setEditRequireGps(e.target.checked)}
-                        className="rounded text-blue-600 h-4 w-4"
+                        className="rounded text-indigo-600 h-4 w-4"
                       />
-                      Bắt buộc định vị GPS Geofencing
+                      Định vị GPS thực tế chi nhánh
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleAutoDetectGpsEdit}
-                      className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 underline"
-                    >
-                      <Navigation className="h-3 w-3" /> Lấy GPS hiện tại của tôi
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {editLat && editLng && (
+                        <a
+                          href={`https://www.google.com/maps?q=${editLat},${editLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 underline"
+                        >
+                          <MapPin className="h-3 w-3" /> Kiểm tra Google Maps
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectGpsEdit}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 underline"
+                      >
+                        <Navigation className="h-3 w-3" /> Lấy GPS hiện tại
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -797,27 +840,33 @@ export default function ProjectList() {
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Bán kính (m)</label>
+                      <label className="text-[11px] text-slate-500 block mb-1">
+                        Bán kính (m) <span className="text-indigo-600 font-bold">*</span>
+                      </label>
                       <input 
                         type="number" 
-                        placeholder="150"
+                        placeholder="20"
                         value={editRadius} 
                         onChange={e => setEditRadius(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border rounded-lg bg-white font-mono text-xs"
+                        className="w-full px-2.5 py-1.5 border rounded-lg bg-white font-mono text-xs font-semibold text-indigo-700"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ công trường</label>
+                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ thực tế chi nhánh</label>
                     <input 
                       type="text" 
-                      placeholder="e.g. Tòa nhà Saigon Centre, Lê Lợi, Q1"
+                      placeholder="e.g. Tòa nhà Keangnam, Mễ Trì, Nam Từ Liêm, Hà Nội"
                       value={editAddress} 
                       onChange={e => setEditAddress(e.target.value)}
                       className="w-full px-2.5 py-1.5 border rounded-lg bg-white text-xs"
                     />
                   </div>
+
+                  <p className="text-[10px] text-slate-400 italic">
+                    * Mặc định 20m (Admin có thể thiết lập giá trị tùy ý). Nhân viên đứng xa quá bán kính này sẽ bắt buộc chuyển sang chế độ Đi công tác/Khác và phải nhập lý do giải trình.
+                  </p>
                 </div>
 
                 <div className="pt-3 flex items-center justify-end gap-2.5 border-t">

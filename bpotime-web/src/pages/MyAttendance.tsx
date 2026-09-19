@@ -39,6 +39,10 @@ export default function MyAttendance() {
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'scanning' | 'success' | 'denied' | 'error'>('idle')
   const [gpsErrorMsg, setGpsErrorMsg] = useState<string | null>(null)
 
+  // Reason & Mode when outside 20m
+  const [checkInMode, setCheckInMode] = useState<'BUSINESS_TRIP' | 'OTHER'>('BUSINESS_TRIP')
+  const [remoteReason, setRemoteReason] = useState('')
+
   const [pastHistory, setPastHistory] = useState<any[]>([])
 
   // Load initial projects, employees and attendance
@@ -143,7 +147,7 @@ export default function MyAttendance() {
   const isWithinGeofence = useMemo(() => {
     if (!selectedProject?.requireGps) return true
     if (distanceToProject === null) return null
-    return distanceToProject <= (selectedProject.allowedRadiusMeters || 150)
+    return distanceToProject <= (selectedProject.allowedRadiusMeters || 20)
   }, [selectedProject, distanceToProject])
 
   // Timer ticker
@@ -205,18 +209,27 @@ export default function MyAttendance() {
             setGpsErrorMsg(gpsRes.error || 'Không thể định vị GPS')
             if (selectedProject?.requireGps) {
               await logClientError('CHECKIN_BLOCKED_NO_GPS', 'Check-in bị chặn do không có GPS', gpsRes.error)
-              alert(`Dự án ${selectedProject.code} yêu cầu xác thực GPS! Vui lòng bật định vị trên điện thoại.`)
+              alert(`Chi nhánh ${selectedProject.code} yêu cầu xác thực GPS! Vui lòng bật định vị trên điện thoại.`)
               setActionLoading(false)
               return
             }
           }
         }
 
+        // Nếu ngoài bán kính 20m, BẮT BUỘC phải nhập lý do
+        if (isWithinGeofence === false && !remoteReason.trim()) {
+          alert(`Bạn đang cách chi nhánh ${distanceToProject}m (vượt quá bán kính cho phép ${selectedProject?.allowedRadiusMeters || 20}m). Vui lòng chọn chế độ Đi công tác / Vị trí khác và nhập lý do giải trình!`)
+          setActionLoading(false)
+          return
+        }
+
         // Call backend API Check-in
         const res = await axios.post('/api/attendance/check-in', {
           employeeId: currentEmployee.id,
           projectId: selectedProjectId || undefined,
-          notes: note,
+          notes: isWithinGeofence ? note : undefined,
+          checkInMode: isWithinGeofence ? 'ONSITE' : checkInMode,
+          reason: isWithinGeofence ? undefined : remoteReason.trim(),
           latitude: coords?.latitude,
           longitude: coords?.longitude,
           accuracyMeters: coords?.accuracy,
@@ -224,14 +237,15 @@ export default function MyAttendance() {
         })
 
         setIsCheckedIn(true)
+        setRemoteReason('')
         setTodayLogs(prev => [
           { 
             id: String(Date.now()), 
             time: res.data.time, 
             type: 'CHECK_IN', 
             location: res.data.isGpsVerified 
-              ? `GPS hợp lệ (${res.data.distanceMeters ?? 0}m tới tâm dự án)` 
-              : 'Văn phòng / Điểm danh thủ công', 
+              ? `Tại chi nhánh (${res.data.distanceMeters ?? 0}m)` 
+              : `Ngoài chi nhánh (${res.data.distanceMeters ?? 0}m)`, 
             status: res.data.status 
           },
           ...prev
@@ -398,7 +412,7 @@ export default function MyAttendance() {
                       <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                         <span className="text-slate-600 font-medium">Khoảng cách tới {selectedProject?.code}:</span>
                         <span className={`font-bold ${isWithinGeofence ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {distanceToProject} m / Bán kính {selectedProject?.allowedRadiusMeters || 150}m
+                          {distanceToProject} m / Bán kính {selectedProject?.allowedRadiusMeters || 20}m
                         </span>
                       </div>
                     )}
@@ -425,18 +439,73 @@ export default function MyAttendance() {
                   <div className="flex items-center justify-between text-[11px] pt-1">
                     <span className="text-slate-500 flex items-center gap-1">
                       <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                      Dự án yêu cầu GPS Geofencing
+                      Dự án yêu cầu GPS Geofencing (≤ {selectedProject?.allowedRadiusMeters || 20}m)
                     </span>
                     {isWithinGeofence === true && (
                       <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                        Hợp lệ trong phạm vi
+                        Hợp lệ trong bán kính
                       </span>
                     )}
                     {isWithinGeofence === false && (
                       <span className="text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full">
-                        Ngoài phạm vi dự án
+                        Ngoài bán kính ({distanceToProject}m)
                       </span>
                     )}
+                  </div>
+                )}
+
+                {/* Khi ở ngoài bán kính 20m: Bắt buộc chọn Chế độ và nhập Lý do */}
+                {!isCheckedIn && isWithinGeofence === false && distanceToProject !== null && (
+                  <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 space-y-2.5 mt-2">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-amber-900">
+                          Vị trí cách chi nhánh {distanceToProject}m (&gt; {selectedProject?.allowedRadiusMeters || 20}m)
+                        </p>
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          Chế độ chuyển sang <strong>Đi công tác</strong> hoặc <strong>Vị trí khác</strong>. Vui lòng nhập lý do giải trình để Admin xem xét:
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCheckInMode('BUSINESS_TRIP')}
+                        className={`py-1.5 px-2 text-xs font-semibold rounded-lg border transition-all ${
+                          checkInMode === 'BUSINESS_TRIP'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        🚗 Đi công tác
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCheckInMode('OTHER')}
+                        className={`py-1.5 px-2 text-xs font-semibold rounded-lg border transition-all ${
+                          checkInMode === 'OTHER'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        📍 Vị trí khác
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        Lý do giải trình <span className="text-rose-500">* (Bắt buộc)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={remoteReason}
+                        onChange={(e) => setRemoteReason(e.target.value)}
+                        placeholder="VD: Làm việc tại văn phòng đối tác, công tác tỉnh, giao dịch bên ngoài..."
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-slate-800 placeholder:text-slate-400"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

@@ -20,7 +20,9 @@ import {
   History,
   CheckSquare,
   Square,
-  UserCheck
+  UserCheck,
+  MapPin,
+  ExternalLink
 } from 'lucide-react'
 import MakeupAttendanceModal from '@/components/attendance/MakeupAttendanceModal'
 import AttendanceHistoryModal from '@/components/attendance/AttendanceHistoryModal'
@@ -54,6 +56,12 @@ interface BackendAttendance {
   workedHours: number
   otHours: number
   notes: string | null
+  isGpsVerified?: boolean
+  distanceToProjectMeters?: number | null
+  checkInLatitude?: number | null
+  checkInLongitude?: number | null
+  checkInDevice?: string | null
+  projectRadius?: number | null
 }
 
 export default function DailyAttendance() {
@@ -493,7 +501,7 @@ export default function DailyAttendance() {
                     <th className="py-3 px-3 text-center">Giờ Ra</th>
                     <th className="py-3 px-4">Trạng thái chấm công</th>
                     <th className="py-3 px-3 text-center">Giờ OT</th>
-                    <th className="py-3 px-4">Ghi chú</th>
+                    <th className="py-3 px-4">Định vị GPS / Lý do</th>
                     <th className="py-3 px-3 text-center">Lịch sử</th>
                   </tr>
                 </thead>
@@ -601,8 +609,47 @@ export default function DailyAttendance() {
                           )}
                         </td>
 
-                        <td className="py-3 px-4 text-slate-500 max-w-[200px] truncate text-[11px]">
-                          {record.notes || <span className="text-slate-300 italic">Đúng giờ</span>}
+                        <td className="py-3 px-4 max-w-[240px] text-[11px]">
+                          {record.checkInLatitude && record.checkInLongitude ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center flex-wrap gap-1.5">
+                                {record.distanceToProjectMeters !== null && record.distanceToProjectMeters !== undefined ? (
+                                  record.distanceToProjectMeters <= (record.projectRadius || 20) ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium text-[10px] border border-emerald-200">
+                                      <MapPin className="h-3 w-3" /> Tại chi nhánh ({record.distanceToProjectMeters}m)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                                      <AlertTriangle className="h-3 w-3" /> Cách {record.distanceToProjectMeters > 1000 ? `${(record.distanceToProjectMeters/1000).toFixed(1)}km` : `${record.distanceToProjectMeters}m`} (&gt;{record.projectRadius || 20}m)
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium text-[10px]">
+                                    <MapPin className="h-3 w-3" /> Có tọa độ GPS
+                                  </span>
+                                )}
+
+                                <a 
+                                  href={`https://www.google.com/maps?q=${record.checkInLatitude},${record.checkInLongitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 hover:text-blue-800 underline font-semibold"
+                                  title="Xem tọa độ thực tế trên Google Maps"
+                                >
+                                  <ExternalLink className="h-2.5 w-2.5" /> Bản đồ
+                                </a>
+                              </div>
+                              {record.notes && (
+                                <p className="text-slate-700 font-normal leading-tight break-words">
+                                  {record.notes}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-500">
+                              {record.notes || <span className="text-slate-300 italic">Đúng giờ</span>}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3 px-3 text-center">

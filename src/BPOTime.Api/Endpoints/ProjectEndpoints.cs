@@ -73,13 +73,18 @@ public static class ProjectEndpoints
                 Client = request.Client?.Trim() ?? string.Empty,
                 Color = string.IsNullOrWhiteSpace(request.Color) ? "#2563EB" : request.Color.Trim(),
                 Status = "ACTIVE",
+                Latitude = request.Latitude,
+                Longitude = request.Longitude,
+                AllowedRadiusMeters = (request.AllowedRadiusMeters.HasValue && request.AllowedRadiusMeters.Value > 0) ? request.AllowedRadiusMeters.Value : 20,
+                RequireGps = request.RequireGps ?? true,
+                Address = request.Address?.Trim(),
                 CreatedAt = DateTime.UtcNow
             };
 
             db.Projects.Add(project);
             await db.SaveChangesAsync();
 
-            Serilog.Log.Information("[PROJECT_CREATED] Đã tạo mới dự án {Code} - {Name}", project.Code, project.Name);
+            Serilog.Log.Information("[PROJECT_CREATED] Đã tạo mới dự án {Code} - {Name} với bán kính {Radius}m", project.Code, project.Name, project.AllowedRadiusMeters);
             return Results.Created($"/api/projects/{project.Id}", project);
         });
 
@@ -94,16 +99,16 @@ public static class ProjectEndpoints
             if (!string.IsNullOrWhiteSpace(request.Color)) project.Color = request.Color.Trim();
             if (!string.IsNullOrWhiteSpace(request.Status)) project.Status = request.Status.Trim();
             
-            if (request.Latitude.HasValue) project.Latitude = request.Latitude.Value;
-            if (request.Longitude.HasValue) project.Longitude = request.Longitude.Value;
+            project.Latitude = request.Latitude;
+            project.Longitude = request.Longitude;
             if (request.AllowedRadiusMeters.HasValue && request.AllowedRadiusMeters.Value > 0)
                 project.AllowedRadiusMeters = request.AllowedRadiusMeters.Value;
             if (request.RequireGps.HasValue) project.RequireGps = request.RequireGps.Value;
-            if (!string.IsNullOrWhiteSpace(request.Address)) project.Address = request.Address.Trim();
+            project.Address = request.Address?.Trim();
 
             await db.SaveChangesAsync();
 
-            Serilog.Log.Information("[PROJECT_UPDATED] Cập nhật dự án {Code} - {Name}", project.Code, project.Name);
+            Serilog.Log.Information("[PROJECT_UPDATED] Cập nhật dự án {Code} - {Name} bán kính {Radius}m", project.Code, project.Name, project.AllowedRadiusMeters);
             return Results.Ok(new { message = "Cập nhật dự án thành công!", project });
         });
 
@@ -302,7 +307,17 @@ public static class ProjectEndpoints
     }
 }
 
-public record CreateProjectRequest(string Code, string Name, string? Client, string? Color);
+public record CreateProjectRequest(
+    string Code, 
+    string Name, 
+    string? Client, 
+    string? Color,
+    double? Latitude = null,
+    double? Longitude = null,
+    int? AllowedRadiusMeters = 20,
+    bool? RequireGps = true,
+    string? Address = null
+);
 public record UpdateProjectRequest(
     string? Name,
     string? Client,
