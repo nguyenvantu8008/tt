@@ -46,7 +46,7 @@ export async function logClientError(
 
   try {
     // Gửi ngầm tới backend API
-    await fetch('http://localhost:5246/api/logs/client-error', {
+    await fetch('/api/logs/client-error', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ export function initClientErrorTelemetry(): void {
       if (offlineLogs.length === 0) return;
 
       for (const log of offlineLogs) {
-        await fetch('http://localhost:5246/api/logs/client-error', {
+        await fetch('/api/logs/client-error', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(log),

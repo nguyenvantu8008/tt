@@ -148,6 +148,61 @@ public static class AttendanceEndpoints
             return Results.Ok(history);
         });
 
+        // 1d. Get attendance for date range (for reports and monthly Excel export)
+        group.MapGet("/range", async ([FromQuery] string? startDate, [FromQuery] string? endDate, ApplicationDbContext db) =>
+        {
+            DateOnly start = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
+            DateOnly end = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            if (!string.IsNullOrWhiteSpace(startDate) && DateOnly.TryParse(startDate, out var parsedStart))
+            {
+                start = parsedStart;
+            }
+            if (!string.IsNullOrWhiteSpace(endDate) && DateOnly.TryParse(endDate, out var parsedEnd))
+            {
+                end = parsedEnd;
+            }
+
+            var records = await db.Attendances
+                .Include(a => a.Employee)
+                .Include(a => a.Project)
+                .Include(a => a.Shift)
+                .Where(a => a.Date >= start && a.Date <= end)
+                .OrderBy(a => a.Date)
+                .ThenBy(a => a.Employee.Code)
+                .Select(a => new
+                {
+                    a.Id,
+                    a.EmployeeId,
+                    EmployeeName = a.Employee.FullName,
+                    EmployeeCode = a.Employee.Code,
+                    EmployeeDepartment = a.Employee.Department,
+                    EmployeePosition = a.Employee.Position,
+                    a.ProjectId,
+                    ProjectCode = a.Project.Code,
+                    ProjectName = a.Project.Name,
+                    ProjectRadius = a.Project.AllowedRadiusMeters,
+                    a.ShiftId,
+                    ShiftCode = a.Shift.Code,
+                    ShiftName = a.Shift.Name,
+                    Date = a.Date.ToString("yyyy-MM-dd"),
+                    CheckIn = a.CheckInTime.HasValue ? a.CheckInTime.Value.ToString("HH:mm") : null,
+                    CheckOut = a.CheckOutTime.HasValue ? a.CheckOutTime.Value.ToString("HH:mm") : null,
+                    Status = a.Status.ToString().ToUpper(),
+                    a.WorkedHours,
+                    a.OtHours,
+                    a.Notes,
+                    a.IsGpsVerified,
+                    a.DistanceToProjectMeters,
+                    a.CheckInLatitude,
+                    a.CheckInLongitude,
+                    a.CheckInDevice
+                })
+                .ToListAsync();
+
+            return Results.Ok(records);
+        });
+
         // 2. Personal / Kiosk Check-In with Branch GPS Geofencing (Default 20m Radius)
         group.MapPost("/check-in", async ([FromBody] CheckInRequest request, ApplicationDbContext db) =>
         {

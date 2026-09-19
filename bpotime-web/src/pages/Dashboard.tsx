@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   CalendarDays,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -410,26 +411,37 @@ export default function Dashboard() {
               <p className="text-xs text-slate-500 mt-0.5">Dữ liệu thời gian thực đồng bộ từ hệ thống</p>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-              <button
-                onClick={() => setStatusFilter('ALL')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'ALL' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+            <div className="flex items-center flex-wrap gap-2">
+              <Link
+                to="/daily-attendance"
+                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5 transition-colors"
+                title="Đến trang chấm công hàng ngày để xuất Excel chi tiết"
               >
-                Tất cả
-              </button>
-              <button
-                onClick={() => setStatusFilter('ACTIVE')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'ACTIVE' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Đang làm việc
-              </button>
-              <button
-                onClick={() => setStatusFilter('DONE')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'DONE' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Đã tan ca
-              </button>
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Xuất Bảng Công Excel
+              </Link>
+
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'ALL' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => setStatusFilter('ACTIVE')}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'ACTIVE' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Đang làm việc
+                </button>
+                <button
+                  onClick={() => setStatusFilter('DONE')}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${statusFilter === 'DONE' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Đã tan ca
+                </button>
+              </div>
             </div>
           </div>
 

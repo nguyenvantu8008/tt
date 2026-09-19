@@ -22,10 +22,12 @@ import {
   Square,
   UserCheck,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet
 } from 'lucide-react'
 import MakeupAttendanceModal from '@/components/attendance/MakeupAttendanceModal'
 import AttendanceHistoryModal from '@/components/attendance/AttendanceHistoryModal'
+import ExportExcelModal from '@/components/attendance/ExportExcelModal'
 
 interface BackendEmployee {
   id: string
@@ -73,6 +75,7 @@ export default function DailyAttendance() {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [makeupModalOpen, setMakeupModalOpen] = useState(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [selectedEmployeeForHistory, setSelectedEmployeeForHistory] = useState<BackendEmployee | null>(null)
 
   // Multi-select rows state
@@ -389,6 +392,16 @@ export default function DailyAttendance() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setExportModalOpen(true)}
+                className="text-xs font-semibold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100/80 border-emerald-200 shadow-2xs cursor-pointer"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-1.5 text-emerald-600" />
+                Xuất Excel Bảng Công
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setMakeupModalOpen(true)}
                 className="text-xs font-semibold text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 border-blue-200 shadow-2xs"
               >
@@ -694,6 +707,17 @@ export default function DailyAttendance() {
           isOpen={!!selectedEmployeeForHistory}
           onClose={() => setSelectedEmployeeForHistory(null)}
           employee={selectedEmployeeForHistory}
+        />
+
+        {/* Modal Xuất Excel Bảng Công */}
+        <ExportExcelModal
+          isOpen={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          currentDate={selectedDate}
+          employees={employees}
+          projects={projects}
+          shifts={shifts}
+          currentRecords={records}
         />
 
         {/* Floating Bulk Action Bar */}
