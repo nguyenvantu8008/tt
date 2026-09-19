@@ -19,7 +19,9 @@ import {
   FolderKanban,
   CheckSquare,
   Square,
-  Edit3
+  Edit3,
+  Search,
+  ExternalLink
 } from 'lucide-react'
 import { getCurrentGpsPosition } from '@/lib/geoUtils'
 import { logClientError } from '@/lib/clientLogger'
@@ -60,6 +62,10 @@ export default function ProjectList() {
   const [editLng, setEditLng] = useState('')
   const [editRadius, setEditRadius] = useState('20')
   const [editAddress, setEditAddress] = useState('')
+
+  // Google Maps Address Geocoding
+  const [geoLoading, setGeoLoading] = useState(false)
+  const [geoMsg, setGeoMsg] = useState<string | null>(null)
 
   // Members Management Modal
   const [membersModalOpen, setMembersModalOpen] = useState(false)
@@ -164,11 +170,47 @@ export default function ProjectList() {
   const handleAutoDetectGpsEdit = async () => {
     const res = await getCurrentGpsPosition()
     if (res.coords) {
-      setEditLat(res.coords.latitude.toFixed(6))
-      setEditLng(res.coords.longitude.toFixed(6))
-      setEditRequireGps(true)
+      setEditLat(String(res.coords.latitude))
+      setEditLng(String(res.coords.longitude))
     } else {
-      alert(res.error || 'Không lấy được GPS')
+      alert(res.error || 'Không lấy được GPS từ thiết bị.')
+    }
+  }
+
+  // Tự động tìm kiếm tọa độ từ Địa chỉ / Tên tòa nhà hoặc Link Google Maps
+  const handleLookupAddress = async (mode: 'create' | 'edit', queryOverride?: string) => {
+    const query = (queryOverride !== undefined ? queryOverride : (mode === 'create' ? address : editAddress)) || ''
+    if (!query.trim()) {
+      alert('Vui lòng nhập địa chỉ, tên tòa nhà hoặc dán liên kết Google Maps.')
+      return
+    }
+
+    try {
+      setGeoLoading(true)
+      setGeoMsg(null)
+      const res = await axios.get(`/api/geo/lookup?query=${encodeURIComponent(query.trim())}`)
+      if (res.data && res.data.found) {
+        if (mode === 'create') {
+          setLat(String(res.data.latitude))
+          setLng(String(res.data.longitude))
+          if (res.data.formattedAddress && (!address || address.includes('http') || /^-?\d/.test(address))) {
+            setAddress(res.data.formattedAddress)
+          }
+        } else {
+          setEditLat(String(res.data.latitude))
+          setEditLng(String(res.data.longitude))
+          if (res.data.formattedAddress && (!editAddress || editAddress.includes('http') || /^-?\d/.test(editAddress))) {
+            setEditAddress(res.data.formattedAddress)
+          }
+        }
+        setGeoMsg(`Đã định vị thành công: ${res.data.latitude.toFixed(6)}, ${res.data.longitude.toFixed(6)}`)
+      } else {
+        setGeoMsg(res.data?.message || 'Không tìm thấy tọa độ cho địa chỉ này.')
+      }
+    } catch (err: any) {
+      setGeoMsg(err.response?.data?.message || 'Không thể tra cứu tọa độ lúc này.')
+    } finally {
+      setGeoLoading(false)
     }
   }
 
@@ -632,16 +674,15 @@ export default function ProjectList() {
                       Định vị GPS thực tế chi nhánh
                     </label>
                     <div className="flex items-center gap-2">
-                      {lat && lng && (
-                        <a
-                          href={`https://www.google.com/maps?q=${lat},${lng}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 underline"
-                        >
-                          <MapPin className="h-3 w-3" /> Kiểm tra Google Maps
-                        </a>
-                      )}
+                      <a
+                        href="https://www.google.com/maps"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-slate-600 hover:text-slate-800 font-semibold flex items-center gap-1 underline"
+                        title="Mở Google Maps để tự chọn điểm và sao chép tọa độ"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Mở Google Maps
+                      </a>
                       <button
                         type="button"
                         onClick={handleAutoDetectGpsCreate}
@@ -652,6 +693,47 @@ export default function ProjectList() {
                     </div>
                   </div>
 
+                  {/* Địa chỉ & Tự đọc tọa độ từ Google Maps */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Địa chỉ hoặc Link Google Maps (Tự đọc tọa độ chính xác)
+                    </label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nhập tên tòa nhà, địa chỉ hoặc dán link Google Maps (VD: Keangnam, Bitexco, Landmark 81...)"
+                        value={address} 
+                        onChange={e => {
+                          const val = e.target.value
+                          setAddress(val)
+                          if (val.includes('maps') || /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(val.trim())) {
+                            handleLookupAddress('create', val)
+                          }
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleLookupAddress('create')
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLookupAddress('create')}
+                        disabled={geoLoading}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {geoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                        Tự đọc tọa độ
+                      </button>
+                    </div>
+                    {geoMsg && (
+                      <p className="text-[11px] text-indigo-700 font-medium mt-1">{geoMsg}</p>
+                    )}
+                  </div>
+
+                  {/* Lat, Lng & Bán kính */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-[11px] text-slate-500 block mb-1">Vĩ độ (Lat)</label>
@@ -689,16 +771,32 @@ export default function ProjectList() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ thực tế chi nhánh</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Tòa nhà Keangnam, Mễ Trì, Nam Từ Liêm, Hà Nội"
-                      value={address} 
-                      onChange={e => setAddress(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border rounded-lg bg-white text-xs"
-                    />
-                  </div>
+                  {/* Khung bản đồ Google Maps tương tác */}
+                  {lat && lng && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs">
+                      <div className="bg-slate-100/90 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5 text-rose-600" /> Bản đồ Google Maps ({Number(lat).toFixed(5)}, {Number(lng).toFixed(5)})
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${lat},${lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:text-indigo-800 font-bold underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Mở toàn màn hình
+                        </a>
+                      </div>
+                      <iframe
+                        title="Xem trước vị trí Google Maps"
+                        width="100%"
+                        height="160"
+                        loading="lazy"
+                        src={`https://maps.google.com/maps?q=${lat},${lng}&hl=vi&z=17&output=embed`}
+                        className="border-0 block"
+                      />
+                    </div>
+                  )}
 
                   <p className="text-[10px] text-slate-400 italic">
                     * Mặc định 20m (Admin có thể thiết lập giá trị tùy ý). Nhân viên đứng xa quá bán kính này sẽ bắt buộc chuyển sang chế độ Đi công tác/Khác và phải nhập lý do giải trình.
@@ -796,16 +894,15 @@ export default function ProjectList() {
                       Định vị GPS thực tế chi nhánh
                     </label>
                     <div className="flex items-center gap-2">
-                      {editLat && editLng && (
-                        <a
-                          href={`https://www.google.com/maps?q=${editLat},${editLng}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 underline"
-                        >
-                          <MapPin className="h-3 w-3" /> Kiểm tra Google Maps
-                        </a>
-                      )}
+                      <a
+                        href="https://www.google.com/maps"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-slate-600 hover:text-slate-800 font-semibold flex items-center gap-1 underline"
+                        title="Mở Google Maps để tự chọn điểm và sao chép tọa độ"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Mở Google Maps
+                      </a>
                       <button
                         type="button"
                         onClick={handleAutoDetectGpsEdit}
@@ -816,6 +913,47 @@ export default function ProjectList() {
                     </div>
                   </div>
 
+                  {/* Địa chỉ & Tự đọc tọa độ từ Google Maps */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Địa chỉ hoặc Link Google Maps (Tự đọc tọa độ chính xác)
+                    </label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nhập tên tòa nhà, địa chỉ hoặc dán link Google Maps (VD: Keangnam, Bitexco, Landmark 81...)"
+                        value={editAddress} 
+                        onChange={e => {
+                          const val = e.target.value
+                          setEditAddress(val)
+                          if (val.includes('maps') || /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(val.trim())) {
+                            handleLookupAddress('edit', val)
+                          }
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleLookupAddress('edit')
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLookupAddress('edit')}
+                        disabled={geoLoading}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {geoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                        Tự đọc tọa độ
+                      </button>
+                    </div>
+                    {geoMsg && (
+                      <p className="text-[11px] text-indigo-700 font-medium mt-1">{geoMsg}</p>
+                    )}
+                  </div>
+
+                  {/* Lat, Lng & Bán kính */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-[11px] text-slate-500 block mb-1">Vĩ độ (Lat)</label>
@@ -853,16 +991,32 @@ export default function ProjectList() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">Địa chỉ thực tế chi nhánh</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Tòa nhà Keangnam, Mễ Trì, Nam Từ Liêm, Hà Nội"
-                      value={editAddress} 
-                      onChange={e => setEditAddress(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border rounded-lg bg-white text-xs"
-                    />
-                  </div>
+                  {/* Khung bản đồ Google Maps tương tác */}
+                  {editLat && editLng && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs">
+                      <div className="bg-slate-100/90 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5 text-rose-600" /> Bản đồ Google Maps ({Number(editLat).toFixed(5)}, {Number(editLng).toFixed(5)})
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${editLat},${editLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:text-indigo-800 font-bold underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Mở toàn màn hình
+                        </a>
+                      </div>
+                      <iframe
+                        title="Xem trước vị trí Google Maps"
+                        width="100%"
+                        height="160"
+                        loading="lazy"
+                        src={`https://maps.google.com/maps?q=${editLat},${editLng}&hl=vi&z=17&output=embed`}
+                        className="border-0 block"
+                      />
+                    </div>
+                  )}
 
                   <p className="text-[10px] text-slate-400 italic">
                     * Mặc định 20m (Admin có thể thiết lập giá trị tùy ý). Nhân viên đứng xa quá bán kính này sẽ bắt buộc chuyển sang chế độ Đi công tác/Khác và phải nhập lý do giải trình.

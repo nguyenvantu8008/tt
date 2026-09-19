@@ -36,6 +36,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.AddHttpClient();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -133,6 +134,7 @@ app.MapProjectEndpoints();
 app.MapShiftEndpoints();
 app.MapEmployeeEndpoints();
 app.MapAttendanceEndpoints();
+app.MapGeoEndpoints();
 
 var summaries = new[]
 {

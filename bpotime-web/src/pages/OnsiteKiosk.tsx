@@ -17,7 +17,9 @@ import {
   Square,
   ExternalLink,
   ShieldCheck,
-  Compass
+  Compass,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react'
 import { getCurrentGpsPosition, calcDistanceMeters, type GpsCoordinates } from '@/lib/geoUtils'
 import { logClientError } from '@/lib/clientLogger'
@@ -41,6 +43,10 @@ export default function OnsiteKiosk() {
   const [deviceGps, setDeviceGps] = useState<GpsCoordinates | null>(null)
   const [gpsScanning, setGpsScanning] = useState(false)
   const [gpsError, setGpsError] = useState<string | null>(null)
+
+  // Current user & role check
+  const roles: string[] = user?.roles || []
+  const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN') || roles.includes('HR_MANAGER') || roles.length === 0
 
   // Reason & Mode for check-in outside radius (> 20m)
   const [checkInMode, setCheckInMode] = useState<'BUSINESS_TRIP' | 'OTHER'>('BUSINESS_TRIP')
@@ -101,6 +107,34 @@ export default function OnsiteKiosk() {
       await logClientError('KIOSK_GPS_ERROR', 'Không bắt được GPS thiết bị', res.error, '/onsite-kiosk')
     }
     setGpsScanning(false)
+  }
+
+  // Giả lập vị trí dành riêng cho Quản trị viên (Admin Test) trên máy tính không có chip GPS
+  const handleAdminSimulateGps = (isWithin: boolean) => {
+    if (!selectedProject?.latitude || !selectedProject?.longitude) {
+      alert('Chi nhánh này chưa có tọa độ GPS. Vui lòng vào trang Quản lý Dự án để cập nhật vị trí chi nhánh.')
+      return
+    }
+
+    if (isWithin) {
+      // Giả lập vị trí ngay sát tâm chi nhánh (~ 3 mét)
+      setDeviceGps({
+        latitude: selectedProject.latitude + 0.00003,
+        longitude: selectedProject.longitude + 0.00003,
+        accuracy: 3,
+        timestamp: Date.now()
+      })
+      setGpsError(null)
+    } else {
+      // Giả lập vị trí ngoài bán kính (~ 450 mét)
+      setDeviceGps({
+        latitude: selectedProject.latitude + 0.004,
+        longitude: selectedProject.longitude + 0.004,
+        accuracy: 5,
+        timestamp: Date.now()
+      })
+      setGpsError(null)
+    }
   }
 
   // Chi nhánh / Dự án đang chọn
@@ -335,15 +369,58 @@ export default function OnsiteKiosk() {
                 <p className="text-xs font-medium">Đang lấy tọa độ vệ tinh GPS chính xác cao...</p>
               </div>
             ) : gpsError ? (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-rose-900">
-                  <AlertTriangle className="h-4 w-4" />
-                  Không thể lấy vị trí GPS
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-amber-900 text-sm">Chưa cấp quyền truy cập Vị trí (GPS)</h4>
+                    <p className="text-amber-800 text-[11px] mt-0.5">{gpsError}</p>
+                  </div>
                 </div>
-                <p>{gpsError}</p>
-                <p className="text-[11px] text-rose-600 pt-1">
-                  Vui lòng bật quyền truy cập Vị trí trên trình duyệt hoặc điện thoại để tiếp tục.
-                </p>
+
+                {/* Hướng dẫn mở quyền GPS */}
+                <div className="bg-white/90 rounded-lg p-3 border border-amber-200 text-[11px] space-y-1.5 text-slate-700">
+                  <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <HelpCircle className="h-3.5 w-3.5 text-indigo-600" /> Cách bật quyền GPS trên trình duyệt:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
+                    <li>Nhấp vào biểu tượng <strong>Ổ khóa (🔒)</strong> hoặc <strong>Cài đặt trang web</strong> bên trái thanh địa chỉ URL.</li>
+                    <li>Tìm mục <strong>Vị trí (Location)</strong> và đổi thành <strong>Cho phép (Allow)</strong>.</li>
+                    <li>Bấm nút <strong>"Thử lại quét GPS"</strong> hoặc bấm F5 tải lại trang.</li>
+                  </ol>
+                </div>
+
+                <div className="flex items-center flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={scanDeviceGps}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Navigation className="h-3.5 w-3.5" /> Thử lại quét GPS
+                  </button>
+
+                  {/* Nút dành riêng cho Admin để test trên PC */}
+                  {isAdmin && selectedProject && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleAdminSimulateGps(true)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Dành cho Admin test: Đặt vị trí ngay tại chi nhánh (≤ 20m)"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Admin: Test tại chi nhánh (≤ 20m)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdminSimulateGps(false)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Dành cho Admin test: Đặt vị trí xa chi nhánh (> 20m) để test nhập lý do"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Admin: Test ngoài chi nhánh (&gt; 20m)
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : deviceGps ? (
               <div className="space-y-3">

@@ -17,7 +17,9 @@ import {
   Navigation,
   Smartphone,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react'
 import { getCurrentGpsPosition, calcDistanceMeters, type GpsCoordinates } from '@/lib/geoUtils'
 import { logClientError } from '@/lib/clientLogger'
@@ -42,6 +44,40 @@ export default function MyAttendance() {
   // Reason & Mode when outside 20m
   const [checkInMode, setCheckInMode] = useState<'BUSINESS_TRIP' | 'OTHER'>('BUSINESS_TRIP')
   const [remoteReason, setRemoteReason] = useState('')
+
+  // Role check
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : null
+  const roles: string[] = user?.roles || []
+  const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN') || roles.includes('HR_MANAGER') || roles.length === 0
+
+  // Giả lập GPS cho Admin khi test trên máy tính
+  const handleAdminSimulateGps = (isWithin: boolean) => {
+    if (!selectedProject?.latitude || !selectedProject?.longitude) {
+      alert('Chi nhánh này chưa có tọa độ GPS. Vui lòng vào trang Quản lý Dự án để cập nhật vị trí chi nhánh.')
+      return
+    }
+
+    if (isWithin) {
+      setCurrentGps({
+        latitude: selectedProject.latitude + 0.00003,
+        longitude: selectedProject.longitude + 0.00003,
+        accuracy: 3,
+        timestamp: Date.now()
+      })
+      setGpsStatus('success')
+      setGpsErrorMsg(null)
+    } else {
+      setCurrentGps({
+        latitude: selectedProject.latitude + 0.004,
+        longitude: selectedProject.longitude + 0.004,
+        accuracy: 5,
+        timestamp: Date.now()
+      })
+      setGpsStatus('success')
+      setGpsErrorMsg(null)
+    }
+  }
 
   const [pastHistory, setPastHistory] = useState<any[]>([])
 
@@ -419,19 +455,61 @@ export default function MyAttendance() {
                   </div>
                 )}
 
-                {gpsStatus === 'denied' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="font-semibold block">Quyền vị trí bị từ chối</strong>
-                      Nhấp vào biểu tượng 🔒 cạnh thanh địa chỉ URL và chọn "Cho phép truy cập Vị trí".
+                {(gpsStatus === 'denied' || gpsErrorMsg) && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-900 space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold block text-amber-950">Chưa cấp quyền truy cập Vị trí (GPS)</strong>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          {gpsErrorMsg || 'Trình duyệt đang chặn định vị vệ tinh GPS.'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {gpsErrorMsg && gpsStatus !== 'denied' && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-[11px] text-rose-700">
-                    {gpsErrorMsg}
+                    {/* Hướng dẫn bật quyền GPS */}
+                    <div className="bg-white/80 rounded-lg p-2.5 border border-amber-200 text-[11px] space-y-1 text-slate-700">
+                      <p className="font-semibold text-slate-800 flex items-center gap-1">
+                        <HelpCircle className="h-3.5 w-3.5 text-indigo-600" /> Cách bật quyền GPS trên trình duyệt:
+                      </p>
+                      <ol className="list-decimal list-inside space-y-0.5 text-slate-600 pl-1">
+                        <li>Nhấp vào biểu tượng <strong>Ổ khóa (🔒)</strong> bên trái thanh địa chỉ URL.</li>
+                        <li>Chuyển <strong>Vị trí (Location)</strong> thành <strong>Cho phép (Allow)</strong>.</li>
+                        <li>Bấm <strong>"Quét lại GPS"</strong> hoặc tải lại trang.</li>
+                      </ol>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={refreshGpsPosition}
+                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Navigation className="h-3 w-3" /> Quét lại GPS
+                      </button>
+
+                      {/* Nút giả lập GPS dành cho Admin */}
+                      {isAdmin && selectedProject && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleAdminSimulateGps(true)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                            title="Admin test: Vị trí tại chi nhánh"
+                          >
+                            <Sparkles className="h-3 w-3" /> Admin: Test tại chi nhánh (≤ 20m)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAdminSimulateGps(false)}
+                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                            title="Admin test: Vị trí ngoài chi nhánh"
+                          >
+                            <Sparkles className="h-3 w-3" /> Admin: Test ngoài chi nhánh (&gt; 20m)
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
 
