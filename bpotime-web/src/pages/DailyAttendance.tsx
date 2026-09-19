@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import AppLayout from '@/components/layout/AppLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import type { AttendanceStatus } from '@/types/attendance'
 import { Button } from '@/components/ui/button'
 import BulkActionBar from '@/components/ui/BulkActionBar'
@@ -312,9 +312,9 @@ export default function DailyAttendance() {
   })
 
   return (
-    <AppLayout 
-      title="Điểm danh Hàng ngày (Database PostgreSQL)" 
-      subtitle="Dữ liệu chấm công đồng bộ thời gian thực và lưu trữ vĩnh viễn trong CSDL"
+    <AdminLayout 
+      title="Attendance Center" 
+      subtitle="Trung tâm điều hành và điểm danh hàng ngày đồng bộ CSDL"
     >
       <div className="space-y-6 max-w-7xl mx-auto">
         
@@ -810,7 +810,7 @@ export default function DailyAttendance() {
         </BulkActionBar>
 
       </div>
-    </AppLayout>
+    </AdminLayout>
   )
 }
 

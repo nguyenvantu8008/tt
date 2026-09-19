@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import AppLayout from '@/components/layout/AppLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import { Button } from '@/components/ui/button'
 import BulkActionBar from '@/components/ui/BulkActionBar'
 import { 
@@ -402,7 +402,7 @@ export default function ProjectList() {
   const availableEmployeesToAdd = employees.filter(emp => emp.projectId !== selectedProjForMembers?.id)
 
   return (
-    <AppLayout 
+    <AdminLayout 
       title="Dự án BPO & Vị trí GPS (CSDL PostgreSQL)" 
       subtitle="Quản lý dự án, cấu hình Geofencing định vị công trường và phân bổ thành viên thời gian thực"
     >
@@ -1215,7 +1215,7 @@ export default function ProjectList() {
         />
 
       </div>
-    </AppLayout>
+    </AdminLayout>
   )
 }
 

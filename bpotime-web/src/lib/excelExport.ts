@@ -337,3 +337,87 @@ export function exportMonthlyAttendanceToExcel(
   const fileName = `Bang_Tong_Hop_Cong_${monthStr.replace(/-/g, '_')}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * Xuất file Excel Bảng Thanh Toán Lương
+ */
+export function exportPayrollToExcel(
+  monthStr: string,
+  items: any[],
+  companyName: string = 'BPOTIME - HỆ THỐNG QUẢN LÝ CHẤM CÔNG & LƯƠNG HIỆN TRƯỜNG'
+) {
+  const wb = XLSX.utils.book_new();
+  const header = [
+    [companyName.toUpperCase()],
+    [`BẢNG TỔNG HỢP CHI TRẢ LƯƠNG THÁNG: ${monthStr}`],
+    [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')} | Tổng số nhân sự: ${items.length}`],
+    [],
+    [
+      'STT',
+      'Mã NV',
+      'Họ và Tên',
+      'Phòng Ban',
+      'Công Thực Tế',
+      'Giờ OT',
+      'Lương Gross',
+      'Phụ Cấp',
+      'BHXH Trừ (10.5%)',
+      'Thực Lĩnh (Net)'
+    ]
+  ];
+
+  let sumGross = 0;
+  let sumNet = 0;
+  let sumInsurance = 0;
+
+  const rows = items.map((item, idx) => {
+    sumGross += item.salaryGross || 0;
+    sumNet += item.netPay || 0;
+    sumInsurance += item.insurance || 0;
+
+    return [
+      idx + 1,
+      item.code,
+      item.fullName,
+      item.department,
+      item.workedDays || 0,
+      item.otHours || 0,
+      item.salaryGross || 0,
+      item.allowance || 0,
+      item.insurance || 0,
+      item.netPay || 0
+    ];
+  });
+
+  const totalRow = [
+    'TỔNG CỘNG TOÀN CÔNG TY',
+    '',
+    '',
+    '',
+    '',
+    '',
+    sumGross,
+    '',
+    sumInsurance,
+    sumNet
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet([...header, ...rows, totalRow]);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 18 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Bang_Luong');
+  const fileName = `Bang_Luong_${monthStr.replace(/-/g, '_')}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+

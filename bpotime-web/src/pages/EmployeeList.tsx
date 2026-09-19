@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import AppLayout from '@/components/layout/AppLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import { Button } from '@/components/ui/button'
 import BulkActionBar from '@/components/ui/BulkActionBar'
 import MakeupAttendanceModal from '@/components/attendance/MakeupAttendanceModal'
@@ -297,7 +297,7 @@ export default function EmployeeList() {
   })
 
   return (
-    <AppLayout 
+    <AdminLayout 
       title="Quản lý Nhân sự (CSDL PostgreSQL)" 
       subtitle="Thêm, sửa, phân công dự án và quản lý trạng thái hồ sơ nhân sự thời gian thực"
     >
@@ -953,7 +953,7 @@ export default function EmployeeList() {
         />
 
       </div>
-    </AppLayout>
+    </AdminLayout>
   )
 }
 

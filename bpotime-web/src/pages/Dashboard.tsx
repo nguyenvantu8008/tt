@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
-import AppLayout from '@/components/layout/AppLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import { Button } from '@/components/ui/button'
 import { 
   Users, 
@@ -176,7 +176,7 @@ export default function Dashboard() {
   })
 
   return (
-    <AppLayout 
+    <AdminLayout 
       title="Tổng Quan Hoạt Động" 
       subtitle="Bảng điều hành nhân sự BPO & điểm danh hàng ngày"
     >
@@ -570,7 +570,7 @@ export default function Dashboard() {
         </div>
 
       </div>
-    </AppLayout>
+    </AdminLayout>
   )
 }
 

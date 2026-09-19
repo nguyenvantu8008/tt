@@ -17,8 +17,11 @@ import {
   Mail
 } from 'lucide-react'
 
+import { useAuth } from '@/lib/authContext'
+
 export default function Login() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,12 +40,16 @@ export default function Login() {
 
       const { token, userId, username, roles, employeeId, fullName, avatar } = response.data
 
-      // Save token and user details
-      localStorage.setItem('token', token)
-      localStorage.setItem('user', JSON.stringify({ userId, email, username, roles, employeeId, fullName, avatar }))
+      // Save session into AuthContext
+      login(token, { userId, email, username, roles, employeeId, fullName, avatar })
 
-      // Redirect to dashboard
-      navigate('/dashboard')
+      // Role-based redirection
+      const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN') || roles.includes('HR_MANAGER')
+      if (isAdmin) {
+        navigate('/admin/dashboard')
+      } else {
+        navigate('/app/home')
+      }
     } catch (err: any) {
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message)

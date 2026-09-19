@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import AppLayout from '@/components/layout/AppLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import { Button } from '@/components/ui/button'
 import { 
   Calendar, 
@@ -114,7 +114,7 @@ export default function MonthlyTimesheet() {
   })
 
   return (
-    <AppLayout 
+    <AdminLayout 
       title="Bảng công Tổng hợp Tháng (Dữ liệu PostgreSQL)" 
       subtitle="Ma trận chấm công chi tiết được tổng hợp trực tiếp từ cơ sở dữ liệu để xuất bảng lương"
     >
@@ -351,6 +351,6 @@ export default function MonthlyTimesheet() {
         />
 
       </div>
-    </AppLayout>
+    </AdminLayout>
   )
 }
