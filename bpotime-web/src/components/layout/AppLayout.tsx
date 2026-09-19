@@ -85,26 +85,23 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 ease-in-out shadow-lg shadow-slate-100 lg:shadow-none
+        fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 ease-in-out shadow-lg shadow-slate-100 lg:shadow-none
         lg:static lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Brand Header */}
-        <div className="h-20 px-6 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-gradient-to-tr from-indigo-600 via-indigo-700 to-blue-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/25 text-white ring-2 ring-indigo-100">
+        <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xs">
               <Building2 className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent">BPOTime</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/60 shadow-2xs">ENTERPRISE</span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium">Workforce & GPS Attendance</p>
+              <span className="font-extrabold text-base tracking-tight text-slate-900">BPOTime</span>
+              <p className="text-[11px] text-slate-400 font-medium -mt-0.5">Quản lý chấm công</p>
             </div>
           </div>
           <button 
-            className="lg:hidden p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
+            className="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
             onClick={() => setSidebarOpen(false)}
           >
             <X className="h-5 w-5" />
@@ -112,10 +109,9 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
         </div>
 
         {/* Navigation Menu */}
-        <div className="flex-1 py-5 px-4 overflow-y-auto space-y-1.5">
-          <div className="px-3 pb-2 flex items-center justify-between">
-            <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">Menu Điều Hướng</span>
-            <Sparkles className="h-3 w-3 text-indigo-400" />
+        <div className="flex-1 py-4 px-3 overflow-y-auto space-y-1">
+          <div className="px-3 pb-1.5">
+            <span className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">Menu</span>
           </div>
 
           {navItems.map((item) => {
@@ -127,20 +123,20 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-                  group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+                  flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150
                   ${isActive 
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 translate-x-1' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 hover:translate-x-0.5'}
+                    ? 'bg-indigo-600 text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'}
                 `}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50/60'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1 rounded-md transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'}`}>
                     <Icon className="h-4 w-4" />
                   </div>
-                  <span className="tracking-tight">{item.name}</span>
+                  <span>{item.name}</span>
                 </div>
                 {item.badge && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'}`}>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     {item.badge}
                   </span>
                 )}
@@ -150,34 +146,31 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
         </div>
 
         {/* User Info & Logout Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/60">
-          <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
+        <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+          <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
               {user?.avatar ? (
                 <img 
                   src={user.avatar} 
                   alt={user?.fullName || user?.username} 
-                  className="h-10 w-10 rounded-xl object-cover shrink-0 ring-2 ring-slate-100" 
+                  className="h-8 w-8 rounded-lg object-cover shrink-0 ring-1 ring-slate-100" 
                 />
               ) : (
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
                   {(user?.fullName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate tracking-tight">{user?.fullName || user?.username || 'Quản trị viên'}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
-                  <span className="text-[10px] text-slate-500 font-semibold truncate uppercase">
-                    {isEmployeeOnly ? 'NHÂN VIÊN' : (roles[0] || 'QUẢN TRỊ VIÊN')}
-                  </span>
-                </div>
+                <p className="text-xs font-bold text-slate-800 truncate leading-tight">{user?.fullName || user?.username || 'Quản trị viên'}</p>
+                <p className="text-[10px] text-slate-400 font-medium truncate uppercase mt-0.5">
+                  {isEmployeeOnly ? 'Nhân viên' : (roles[0] || 'Quản trị')}
+                </p>
               </div>
             </div>
             <button
               onClick={handleLogout}
               title="Đăng xuất khỏi hệ thống"
-              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shrink-0"
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all shrink-0"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -188,74 +181,58 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200/70 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
-          <div className="flex items-center gap-4">
+        <header className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2.5 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
+              className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-lg lg:text-xl font-extrabold text-slate-900 tracking-tight leading-none">{title}</h1>
-              {subtitle && <p className="text-xs text-slate-500 mt-1 font-medium hidden sm:block">{subtitle}</p>}
+              <h1 className="text-base lg:text-lg font-bold text-slate-900 tracking-tight leading-tight">{title}</h1>
+              {subtitle && <p className="text-xs text-slate-500 font-normal hidden sm:block">{subtitle}</p>}
             </div>
           </div>
 
           {/* Right Header Navigation & Tools */}
-          <div className="flex items-center gap-3 lg:gap-4">
-            {/* Quick Search Box (Desktop) */}
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 border border-slate-200/60 text-slate-400 text-xs w-64 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
-              <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <input 
-                type="text" 
-                placeholder="Tìm nhân sự, ca làm, mã..." 
-                className="bg-transparent border-none outline-hidden text-slate-700 w-full placeholder:text-slate-400" 
-              />
-            </div>
-
+          <div className="flex items-center gap-3">
             {/* Live Real-time Clock Widget */}
-            <div className="hidden md:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-slate-100/90 border border-slate-200/80 text-xs shadow-2xs">
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </div>
-              <span className="font-semibold text-slate-600 capitalize">{formattedDate}</span>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+              <Clock className="h-3.5 w-3.5 text-slate-400" />
+              <span className="capitalize font-medium">{formattedDate}</span>
               <span className="text-slate-300">|</span>
-              <span className="font-mono font-bold text-indigo-600 text-sm tracking-tight">{formattedTime}</span>
+              <span className="font-mono font-bold text-slate-800">{formattedTime}</span>
             </div>
 
             {/* Notifications Button */}
-            <button className="relative p-2.5 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100/80 transition-colors border border-transparent hover:border-slate-200">
-              <Bell className="h-4.5 w-4.5" />
-              <span className="absolute top-2 right-2 h-2 w-2 bg-indigo-600 rounded-full ring-2 ring-white" />
+            <button className="relative p-2 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-indigo-600 rounded-full ring-2 ring-white" />
             </button>
 
             {/* User Mini Chip (Desktop) */}
-            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
               {user?.avatar ? (
                 <img 
                   src={user.avatar} 
                   alt={user?.fullName || user?.username} 
-                  className="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200" 
+                  className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200" 
                 />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <div className="h-7 w-7 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
                   {(user?.fullName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
                 </div>
               )}
-              <div className="text-left">
-                <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
-                  {user?.fullName?.split(' ').slice(-1)[0] || user?.username || 'Admin'}
-                </p>
-                <p className="text-[10px] text-slate-400 font-medium">BPO Team</p>
-              </div>
+              <span className="hidden md:inline-block text-xs font-semibold text-slate-700 max-w-[120px] truncate">
+                {user?.fullName?.split(' ').slice(-1)[0] || user?.username || 'Admin'}
+              </span>
             </div>
           </div>
         </header>
 
         {/* Page Body */}
-        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
           {children}
         </main>
       </div>

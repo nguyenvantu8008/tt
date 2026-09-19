@@ -150,6 +150,100 @@ public static class EmployeeEndpoints
             Serilog.Log.Information("[EMPLOYEE_DELETED] Đã xóa vĩnh viễn nhân sự {Code} - {Name}", employee.Code, employee.FullName);
             return Results.Ok(new { message = $"Đã xóa thành công nhân viên {employee.FullName}." });
         });
+
+        // 5. Bulk Update Employees
+        group.MapPost("/bulk-update", async ([FromBody] BulkUpdateEmployeesRequest request, ApplicationDbContext db) =>
+        {
+            if (request.EmployeeIds == null || request.EmployeeIds.Count == 0)
+            {
+                return Results.BadRequest(new { message = "Danh sách nhân viên cần cập nhật không được rỗng." });
+            }
+
+            var employees = await db.Employees
+                .Where(e => request.EmployeeIds.Contains(e.Id))
+                .ToListAsync();
+
+            if (employees.Count == 0)
+            {
+                return Results.NotFound(new { message = "Không tìm thấy nhân viên nào phù hợp." });
+            }
+
+            foreach (var emp in employees)
+            {
+                if (request.ProjectId.HasValue)
+                {
+                    emp.ProjectId = request.ProjectId.Value == Guid.Empty ? null : request.ProjectId.Value;
+                }
+
+                if (request.ShiftId.HasValue)
+                {
+                    emp.ShiftId = request.ShiftId.Value == Guid.Empty ? null : request.ShiftId.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.Department))
+                {
+                    emp.Department = request.Department.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.Status) && Enum.TryParse<EmployeeStatus>(request.Status, true, out var parsedStatus))
+                {
+                    emp.Status = parsedStatus;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            Serilog.Log.Information("[EMPLOYEES_BULK_UPDATED] Cập nhật hàng loạt cho {Count} nhân viên", employees.Count);
+
+            return Results.Ok(new { 
+                message = $"Đã cập nhật thành công {employees.Count} nhân viên được chọn!",
+                updatedCount = employees.Count 
+            });
+        });
+
+        // 6. Bulk Delete Employees
+        group.MapPost("/bulk-delete", async ([FromBody] BulkDeleteEmployeesRequest request, ApplicationDbContext db) =>
+        {
+            if (request.EmployeeIds == null || request.EmployeeIds.Count == 0)
+            {
+                return Results.BadRequest(new { message = "Danh sách nhân sự cần xóa không được rỗng." });
+            }
+
+            var employees = await db.Employees
+                .Where(e => request.EmployeeIds.Contains(e.Id))
+                .ToListAsync();
+
+            if (employees.Count == 0)
+            {
+                return Results.NotFound(new { message = "Không tìm thấy nhân viên nào để xóa." });
+            }
+
+            int deletedCount = 0;
+            int archivedCount = 0;
+
+            foreach (var emp in employees)
+            {
+                var hasAttendance = await db.Attendances.AnyAsync(a => a.EmployeeId == emp.Id);
+                if (hasAttendance)
+                {
+                    emp.Status = EmployeeStatus.Terminated;
+                    archivedCount++;
+                }
+                else
+                {
+                    db.Employees.Remove(emp);
+                    deletedCount++;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            Serilog.Log.Information("[EMPLOYEES_BULK_DELETED] Xóa {Deleted} và lưu trữ {Archived} nhân viên", deletedCount, archivedCount);
+
+            return Results.Ok(new { 
+                message = $"Đã xử lý {employees.Count} nhân viên: Xóa hoàn toàn {deletedCount} người, chuyển sang lưu trữ {archivedCount} người do có dữ liệu chấm công.",
+                deletedCount,
+                archivedCount
+            });
+        });
     }
 }
 
@@ -178,3 +272,16 @@ public record UpdateEmployeeRequest(
     Guid? ShiftId,
     string? Status
 );
+
+public record BulkUpdateEmployeesRequest(
+    List<Guid> EmployeeIds,
+    Guid? ProjectId,
+    Guid? ShiftId,
+    string? Department,
+    string? Status
+);
+
+public record BulkDeleteEmployeesRequest(
+    List<Guid> EmployeeIds
+);
+

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import AppLayout from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
+import BulkActionBar from '@/components/ui/BulkActionBar'
+import MakeupAttendanceModal from '@/components/attendance/MakeupAttendanceModal'
 import { 
   Search, 
   UserPlus, 
@@ -15,7 +17,11 @@ import {
   UserX,
   Building2,
   Briefcase,
-  Clock
+  Clock,
+  CheckSquare,
+  Square,
+  Edit3,
+  CalendarPlus
 } from 'lucide-react'
 import { logClientError } from '@/lib/clientLogger'
 
@@ -26,6 +32,18 @@ export default function EmployeeList() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState('ALL')
+
+  // Multi-select state
+  const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([])
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkMakeupOpen, setBulkMakeupOpen] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  // Bulk Edit Form state
+  const [bulkProjectId, setBulkProjectId] = useState('')
+  const [bulkShiftId, setBulkShiftId] = useState('')
+  const [bulkDept, setBulkDept] = useState('')
+  const [bulkStatus, setBulkStatus] = useState('')
 
   // Create Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -76,6 +94,84 @@ export default function EmployeeList() {
   useEffect(() => {
     fetchEmployees()
   }, [])
+
+  // Multi-select toggle helpers
+  const toggleSelectEmp = (id: string) => {
+    setSelectedEmpIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAll = (visibleEmployees: any[]) => {
+    const visibleIds = visibleEmployees.map(e => e.id)
+    const isAllSelected = visibleIds.length > 0 && visibleIds.every(id => selectedEmpIds.includes(id))
+    if (isAllSelected) {
+      setSelectedEmpIds(prev => prev.filter(id => !visibleIds.includes(id)))
+    } else {
+      setSelectedEmpIds(prev => Array.from(new Set([...prev, ...visibleIds])))
+    }
+  }
+
+  // Bulk update handler
+  const handleBulkUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedEmpIds.length === 0) return
+
+    try {
+      setBulkLoading(true)
+      const res = await axios.post('/api/employees/bulk-update', {
+        employeeIds: selectedEmpIds,
+        projectId: bulkProjectId ? bulkProjectId : undefined,
+        shiftId: bulkShiftId ? bulkShiftId : undefined,
+        department: bulkDept ? bulkDept : undefined,
+        status: bulkStatus ? bulkStatus : undefined
+      })
+
+      alert(res.data.message || `Đã cập nhật ${selectedEmpIds.length} nhân viên thành công!`)
+      setBulkEditOpen(false)
+      setSelectedEmpIds([])
+      // Reset bulk form
+      setBulkProjectId('')
+      setBulkShiftId('')
+      setBulkDept('')
+      setBulkStatus('')
+      await fetchEmployees()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Có lỗi khi cập nhật hàng loạt.'
+      alert(msg)
+      await logClientError('EMPLOYEE_BULK_UPDATE_ERROR', msg, err.message, '/employees')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedEmpIds.length === 0) return
+
+    const confirmDelete = window.confirm(
+      `CẢNH BÁO XÓA HÀNG LOẠT:\n\nBạn có chắc chắn muốn xóa ${selectedEmpIds.length} nhân viên đã chọn?\n\n• Nhân viên đã có dữ liệu chấm công: Tự động chuyển sang 'Lưu trữ (Inactive)' để bảo toàn lịch sử chấm công.\n• Nhân viên chưa từng chấm công: Xóa hoàn toàn khỏi hệ thống.`
+    )
+    if (!confirmDelete) return
+
+    try {
+      setBulkLoading(true)
+      const res = await axios.post('/api/employees/bulk-delete', {
+        employeeIds: selectedEmpIds
+      })
+
+      alert(res.data.message || `Đã xử lý xóa ${selectedEmpIds.length} nhân viên!`)
+      setSelectedEmpIds([])
+      await fetchEmployees()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Có lỗi khi xóa hàng loạt.'
+      alert(msg)
+      await logClientError('EMPLOYEE_BULK_DELETE_ERROR', msg, err.message, '/employees')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
 
   // Tạo nhân viên mới
   const handleCreateEmployee = async (e: React.FormEvent) => {
@@ -191,24 +287,24 @@ export default function EmployeeList() {
     >
       <div className="space-y-6 max-w-7xl mx-auto">
         
-        {/* Top Controls: Search, Filter & Add Button */}
+        {/* Top Controls: Search, Filter, Select All & Add Button */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1">
-            <div className="relative flex-1 max-w-md">
+          <div className="flex items-center gap-3 flex-1 flex-wrap">
+            <div className="relative flex-1 min-w-[240px] max-w-md">
               <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
               <input 
                 type="text" 
                 placeholder="Tìm nhân viên theo họ tên hoặc mã..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-hidden"
               />
             </div>
 
             <select 
               value={department} 
               onChange={e => setDepartment(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden"
             >
               <option value="ALL">Tất cả phòng ban</option>
               <option value="CSKH & Hotline">CSKH & Hotline</option>
@@ -216,12 +312,31 @@ export default function EmployeeList() {
               <option value="Nhập liệu & Số hóa">Nhập liệu & Số hóa</option>
               <option value="Kỹ thuật & Helpdesk">Kỹ thuật & Helpdesk</option>
             </select>
+
+            {/* Select All Toggle Button */}
+            <button
+              type="button"
+              onClick={() => toggleSelectAll(filteredEmployees)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-indigo-200 flex items-center gap-2 cursor-pointer shadow-2xs transition-all"
+            >
+              {selectedEmpIds.length > 0 && filteredEmployees.length > 0 && filteredEmployees.every(e => selectedEmpIds.includes(e.id)) ? (
+                <>
+                  <CheckSquare className="h-4 w-4 text-indigo-600" />
+                  <span>Bỏ chọn ({selectedEmpIds.length})</span>
+                </>
+              ) : (
+                <>
+                  <Square className="h-4 w-4 text-slate-400" />
+                  <span>Chọn tất cả ({filteredEmployees.length})</span>
+                </>
+              )}
+            </button>
           </div>
 
           <Button 
             size="sm" 
             onClick={() => setModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/20 cursor-pointer"
           >
             <UserPlus className="h-4 w-4 mr-1.5" />
             Thêm nhân viên mới
@@ -231,11 +346,11 @@ export default function EmployeeList() {
         {/* Employee Cards Grid */}
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-            <p className="text-xs">Đang tải danh sách nhân viên từ PostgreSQL...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+            <p className="text-xs font-medium">Đang tải danh sách nhân viên từ PostgreSQL...</p>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400">
+          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400">
             <UserX className="h-10 w-10 mx-auto text-slate-300 mb-2" />
             Không tìm thấy nhân viên nào phù hợp.
           </div>
@@ -243,33 +358,55 @@ export default function EmployeeList() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredEmployees.map(emp => {
               const isActive = emp.status === 'ACTIVE'
+              const isSelected = selectedEmpIds.includes(emp.id)
               return (
                 <div 
                   key={emp.id} 
-                  className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between ${isActive ? 'border-slate-200/80' : 'border-rose-200 bg-rose-50/20'}`}
+                  onClick={() => toggleSelectEmp(emp.id)}
+                  className={`bg-white border rounded-3xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between cursor-pointer ${
+                    isSelected 
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-50/15' 
+                      : isActive 
+                        ? 'border-slate-200/80 hover:border-slate-300' 
+                        : 'border-rose-200 bg-rose-50/20'
+                  }`}
                 >
                   <div>
-                    {/* Header card with Avatar and Action Buttons */}
+                    {/* Header card with Checkbox, Avatar and Action Buttons */}
                     <div className="flex items-start justify-between mb-3.5">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelectEmp(emp.id)
+                          }}
+                          className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="h-5 w-5 text-indigo-600" />
+                          ) : (
+                            <Square className="h-5 w-5 text-slate-300 hover:text-slate-500" />
+                          )}
+                        </button>
                         <img 
                           src={emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.code}`} 
                           alt={emp.fullName} 
-                          className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100 shrink-0 bg-slate-100" 
+                          className="h-11 w-11 rounded-xl object-cover ring-2 ring-slate-100 shrink-0 bg-slate-100" 
                         />
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-sm leading-tight">{emp.fullName}</h3>
+                        <div className="min-w-0">
+                          <h3 className="font-extrabold text-slate-900 text-sm leading-tight truncate">{emp.fullName}</h3>
                           <p className="text-[11px] font-mono text-slate-400 mt-0.5">{emp.code}</p>
                         </div>
                       </div>
 
                       {/* Edit and Delete buttons */}
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => openEditModal(emp)}
                           title="Chỉnh sửa nhân sự"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -617,7 +754,7 @@ export default function EmployeeList() {
                     type="submit" 
                     size="sm" 
                     disabled={submitting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cập nhật thay đổi'}
                   </Button>
@@ -627,7 +764,151 @@ export default function EmployeeList() {
           </div>
         )}
 
+        {/* Modal Cập Nhật Hàng Loạt (Bulk Edit Modal) */}
+        {bulkEditOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Edit3 className="h-5 w-5 text-indigo-600" />
+                    Cập Nhật Hàng Loạt ({selectedEmpIds.length} Nhân Sự)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Các trường để trống sẽ giữ nguyên giá trị hiện tại của từng nhân viên
+                  </p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setBulkEditOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkUpdateSubmit} className="space-y-4 pt-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Chuyển sang Dự án BPO mới
+                  </label>
+                  <select
+                    value={bulkProjectId}
+                    onChange={e => setBulkProjectId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-hidden focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">-- Giữ nguyên dự án hiện tại --</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Đổi Ca làm việc mới
+                  </label>
+                  <select
+                    value={bulkShiftId}
+                    onChange={e => setBulkShiftId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-hidden focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">-- Giữ nguyên ca làm việc hiện tại --</option>
+                    {shifts.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Đổi Phòng ban
+                  </label>
+                  <select
+                    value={bulkDept}
+                    onChange={e => setBulkDept(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-hidden focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">-- Giữ nguyên phòng ban hiện tại --</option>
+                    <option value="CSKH & Hotline">CSKH & Hotline</option>
+                    <option value="Kiểm duyệt nội dung">Kiểm duyệt nội dung</option>
+                    <option value="Nhập liệu & Số hóa">Nhập liệu & Số hóa</option>
+                    <option value="Kỹ thuật & Helpdesk">Kỹ thuật & Helpdesk</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Đổi Trạng thái nhân sự
+                  </label>
+                  <select
+                    value={bulkStatus}
+                    onChange={e => setBulkStatus(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-hidden focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">-- Giữ nguyên trạng thái --</option>
+                    <option value="ACTIVE">Hoạt động (Active - Đang làm việc)</option>
+                    <option value="TERMINATED">Nghỉ việc (Inactive - Khóa chấm công)</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBulkEditOpen(false)}
+                    className="text-xs font-bold rounded-xl"
+                  >
+                    Hủy bỏ
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={bulkLoading}
+                    className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-500/20"
+                  >
+                    {bulkLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Đang cập nhật...
+                      </>
+                    ) : (
+                      `Áp dụng cho ${selectedEmpIds.length} nhân sự`
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Chấm Công Bù Hàng Loạt */}
+        <MakeupAttendanceModal
+          isOpen={bulkMakeupOpen}
+          onClose={() => setBulkMakeupOpen(false)}
+          onSuccess={() => {
+            fetchEmployees()
+            setSelectedEmpIds([])
+          }}
+          employees={employees}
+          shifts={shifts}
+          initialEmployeeIds={selectedEmpIds}
+        />
+
+        {/* Floating Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedEmpIds.length}
+          onClearSelection={() => setSelectedEmpIds([])}
+          onBulkEdit={() => setBulkEditOpen(true)}
+          onBulkAttendance={() => setBulkMakeupOpen(true)}
+          onBulkDelete={handleBulkDelete}
+          editLabel="Cập nhật hàng loạt"
+          attendanceLabel="Chấm công bù"
+          deleteLabel="Xóa đã chọn"
+          loading={bulkLoading}
+        />
+
       </div>
     </AppLayout>
   )
 }
+

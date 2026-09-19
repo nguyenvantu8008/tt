@@ -210,6 +210,95 @@ public static class ProjectEndpoints
             Serilog.Log.Information("[PROJECT_MEMBER_REMOVED] Đã rút nhân viên {Emp} khỏi dự án ID {Project}", employee.Code, id);
             return Results.Ok(new { message = $"Đã rút thành công nhân viên {employee.FullName} khỏi dự án." });
         });
+
+        // 9. Bulk Update Project Status
+        group.MapPost("/bulk-update-status", async ([FromBody] BulkUpdateProjectStatusRequest request, ApplicationDbContext db) =>
+        {
+            if (request.ProjectIds == null || request.ProjectIds.Count == 0)
+            {
+                return Results.BadRequest(new { message = "Danh sách dự án không được rỗng." });
+            }
+
+            var projects = await db.Projects
+                .Where(p => request.ProjectIds.Contains(p.Id))
+                .ToListAsync();
+
+            if (projects.Count == 0)
+            {
+                return Results.NotFound(new { message = "Không tìm thấy dự án nào phù hợp." });
+            }
+
+            foreach (var p in projects)
+            {
+                p.Status = request.Status.Trim().ToUpper();
+            }
+
+            await db.SaveChangesAsync();
+            Serilog.Log.Information("[PROJECTS_BULK_STATUS_UPDATED] Cập nhật trạng thái {Status} cho {Count} dự án", request.Status, projects.Count);
+
+            return Results.Ok(new { 
+                message = $"Đã cập nhật trạng thái '{request.Status}' cho {projects.Count} dự án thành công!",
+                updatedCount = projects.Count
+            });
+        });
+
+        // 10. Bulk Delete Projects
+        group.MapPost("/bulk-delete", async ([FromBody] BulkDeleteProjectsRequest request, ApplicationDbContext db) =>
+        {
+            if (request.ProjectIds == null || request.ProjectIds.Count == 0)
+            {
+                return Results.BadRequest(new { message = "Danh sách dự án cần xóa không được rỗng." });
+            }
+
+            var projects = await db.Projects
+                .Include(p => p.Employees)
+                .Where(p => request.ProjectIds.Contains(p.Id))
+                .ToListAsync();
+
+            if (projects.Count == 0)
+            {
+                return Results.NotFound(new { message = "Không tìm thấy dự án nào để xóa." });
+            }
+
+            int deletedCount = 0;
+            int skippedCount = 0;
+
+            foreach (var p in projects)
+            {
+                var attendanceCount = await db.Attendances.CountAsync(a => a.ProjectId == p.Id);
+                if (attendanceCount > 0 && request.Force != true)
+                {
+                    // Tự động chuyển trạng thái sang ON_HOLD/INACTIVE thay vì xóa làm hỏng dữ liệu
+                    p.Status = "ON_HOLD";
+                    skippedCount++;
+                }
+                else
+                {
+                    if (attendanceCount > 0 && request.Force == true)
+                    {
+                        var attendances = await db.Attendances.Where(a => a.ProjectId == p.Id).ToListAsync();
+                        db.Attendances.RemoveRange(attendances);
+                    }
+
+                    foreach (var emp in p.Employees)
+                    {
+                        emp.ProjectId = null;
+                    }
+
+                    db.Projects.Remove(p);
+                    deletedCount++;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            Serilog.Log.Information("[PROJECTS_BULK_DELETED] Xóa {Deleted}, tạm dừng {Skipped} dự án", deletedCount, skippedCount);
+
+            return Results.Ok(new { 
+                message = $"Đã xóa thành công {deletedCount} dự án" + (skippedCount > 0 ? $", tạm dừng {skippedCount} dự án do có dữ liệu chấm công." : "."),
+                deletedCount,
+                skippedCount
+            });
+        });
     }
 }
 
@@ -227,3 +316,6 @@ public record UpdateProjectRequest(
 );
 public record UpdateProjectGpsRequest(double Latitude, double Longitude, int AllowedRadiusMeters, bool RequireGps, string? Address);
 public record AddProjectMemberRequest(Guid EmployeeId);
+public record BulkUpdateProjectStatusRequest(List<Guid> ProjectIds, string Status);
+public record BulkDeleteProjectsRequest(List<Guid> ProjectIds, bool? Force);
+

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import AppLayout from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
+import BulkActionBar from '@/components/ui/BulkActionBar'
 import { 
   Plus, 
   X, 
@@ -15,7 +16,10 @@ import {
   UserPlus, 
   UserMinus,
   CheckCircle2,
-  FolderKanban
+  FolderKanban,
+  CheckSquare,
+  Square,
+  Edit3
 } from 'lucide-react'
 import { getCurrentGpsPosition } from '@/lib/geoUtils'
 import { logClientError } from '@/lib/clientLogger'
@@ -24,6 +28,12 @@ export default function ProjectList() {
   const [projects, setProjects] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Multi-select state
+  const [selectedProjIds, setSelectedProjIds] = useState<string[]>([])
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false)
+  const [bulkStatusVal, setBulkStatusVal] = useState('ACTIVE')
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   // Create Project Modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -58,6 +68,64 @@ export default function ProjectList() {
   const [membersLoading, setMembersLoading] = useState(false)
   const [selectedNewEmpId, setSelectedNewEmpId] = useState('')
   const [memberActionLoading, setMemberActionLoading] = useState(false)
+
+  const toggleSelectProj = (id: string) => {
+    setSelectedProjIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllProjects = () => {
+    if (selectedProjIds.length === projects.length && projects.length > 0) {
+      setSelectedProjIds([])
+    } else {
+      setSelectedProjIds(projects.map(p => p.id))
+    }
+  }
+
+  const handleBulkStatusSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedProjIds.length === 0) return
+
+    try {
+      setBulkLoading(true)
+      const res = await axios.post('/api/projects/bulk-update-status', {
+        projectIds: selectedProjIds,
+        status: bulkStatusVal
+      })
+      alert(res.data.message || `Đã cập nhật trạng thái cho ${selectedProjIds.length} dự án!`)
+      setBulkStatusOpen(false)
+      setSelectedProjIds([])
+      await fetchProjects()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleBulkDeleteProjects = async () => {
+    if (selectedProjIds.length === 0) return
+
+    const confirmDelete = window.confirm(
+      `CẢNH BÁO XÓA HÀNG LOẠT DỰ ÁN:\n\nBạn có chắc chắn muốn xóa ${selectedProjIds.length} dự án đã chọn?\n\n• Dự án đã có lịch sử chấm công: Hệ thống sẽ tự động chuyển sang 'Tạm dừng (ON_HOLD)' để bảo vệ toàn vẹn dữ liệu chấm công.\n• Dự án chưa có chấm công: Sẽ xóa vĩnh viễn khỏi hệ thống.`
+    )
+    if (!confirmDelete) return
+
+    try {
+      setBulkLoading(true)
+      const res = await axios.post('/api/projects/bulk-delete', {
+        projectIds: selectedProjIds
+      })
+      alert(res.data.message || 'Xóa dự án thành công!')
+      setSelectedProjIds([])
+      await fetchProjects()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi xóa.')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
 
   const fetchProjects = async () => {
     try {
@@ -297,15 +365,36 @@ export default function ProjectList() {
     >
       <div className="space-y-6 max-w-7xl mx-auto">
         
-        {/* Top Header */}
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            Tổng số: <strong className="text-slate-800 font-semibold">{projects.length} dự án trong cơ sở dữ liệu</strong>
-          </p>
+        {/* Top Header with Select All */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-500">
+              Tổng số: <strong className="text-slate-800 font-bold">{projects.length} dự án trong CSDL</strong>
+            </p>
+            {projects.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectAllProjects}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-indigo-200 flex items-center gap-2 cursor-pointer shadow-2xs transition-all"
+              >
+                {selectedProjIds.length === projects.length ? (
+                  <>
+                    <CheckSquare className="h-4 w-4 text-indigo-600" />
+                    <span>Bỏ chọn ({selectedProjIds.length})</span>
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 text-slate-400" />
+                    <span>Chọn tất cả ({projects.length})</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           <Button 
             size="sm" 
             onClick={() => setModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/20 cursor-pointer"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             Tạo dự án mới
@@ -315,22 +404,42 @@ export default function ProjectList() {
         {/* Project Cards Grid */}
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-            <p className="text-xs">Đang tải dự án từ PostgreSQL...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+            <p className="text-xs font-medium">Đang tải dự án từ PostgreSQL...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {projects.map(proj => {
               const hasGps = proj.latitude && proj.longitude
+              const isSelected = selectedProjIds.includes(proj.id)
               return (
                 <div 
                   key={proj.id} 
-                  className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between"
+                  onClick={() => toggleSelectProj(proj.id)}
+                  className={`bg-white border rounded-3xl p-6 shadow-xs hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between cursor-pointer ${
+                    isSelected 
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-50/15' 
+                      : 'border-slate-200/80 hover:border-slate-300'
+                  }`}
                 >
                   <div>
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelectProj(proj.id)
+                          }}
+                          className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="h-5 w-5 text-indigo-600" />
+                          ) : (
+                            <Square className="h-5 w-5 text-slate-300 hover:text-slate-500" />
+                          )}
+                        </button>
                         <div 
                           className="h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
                           style={{ backgroundColor: proj.color || '#2563EB' }}
@@ -338,7 +447,7 @@ export default function ProjectList() {
                           {proj.code.split('-')[1]?.[0] || proj.code[0] || 'P'}
                         </div>
                         <div>
-                          <h3 className="font-bold text-slate-900 text-base leading-tight">{proj.name}</h3>
+                          <h3 className="font-extrabold text-slate-900 text-base leading-tight">{proj.name}</h3>
                           <p className="text-xs text-slate-400 font-mono mt-0.5">
                             {proj.code} • Khách hàng: {proj.client || 'Nội bộ'}
                           </p>
@@ -346,12 +455,12 @@ export default function ProjectList() {
                       </div>
 
                       {/* Top Action Buttons */}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => openEditModal(proj)}
                           title="Chỉnh sửa dự án & GPS"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -835,7 +944,75 @@ export default function ProjectList() {
           </div>
         )}
 
+        {/* Modal Đổi Trạng Thái Hàng Loạt (Bulk Status Modal) */}
+        {bulkStatusOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Edit3 className="h-5 w-5 text-indigo-600" />
+                  Đổi Trạng Thái {selectedProjIds.length} Dự Án
+                </h3>
+                <button 
+                  type="button"
+                  onClick={() => setBulkStatusOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkStatusSubmit} className="space-y-4 pt-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                    Chọn trạng thái áp dụng đồng loạt
+                  </label>
+                  <select
+                    value={bulkStatusVal}
+                    onChange={e => setBulkStatusVal(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="ACTIVE">Hoạt động (Active - Đang chạy)</option>
+                    <option value="ON_HOLD">Tạm dừng (On Hold)</option>
+                    <option value="COMPLETED">Đã kết thúc / Hoàn thành (Completed)</option>
+                  </select>
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBulkStatusOpen(false)}
+                    className="text-xs font-bold rounded-xl"
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={bulkLoading}
+                    className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-500/20"
+                  >
+                    {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Xác nhận cập nhật'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedProjIds.length}
+          onClearSelection={() => setSelectedProjIds([])}
+          onBulkEdit={() => setBulkStatusOpen(true)}
+          onBulkDelete={handleBulkDeleteProjects}
+          editLabel="Đổi trạng thái"
+          deleteLabel="Xóa dự án"
+          loading={bulkLoading}
+        />
+
       </div>
     </AppLayout>
   )
 }
+

@@ -555,6 +555,136 @@ public static class AttendanceEndpoints
                 recordId = existing.Id
             });
         });
+
+        // 8. Bulk Makeup Attendance (Chấm công bù hàng loạt)
+        group.MapPost("/bulk-makeup", async ([FromBody] BulkMakeupAttendanceRequest request, ApplicationDbContext db) =>
+        {
+            if (request.EmployeeIds == null || request.EmployeeIds.Count == 0)
+            {
+                return Results.BadRequest(new { message = "Danh sách nhân viên không được rỗng." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Date) || !DateOnly.TryParse(request.Date, out var date))
+            {
+                return Results.BadRequest(new { message = "Ngày chấm công bù không hợp lệ." });
+            }
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (date > today)
+            {
+                return Results.BadRequest(new { message = "Không thể chấm công bù cho ngày tương lai." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.CheckIn) || !TimeOnly.TryParse(request.CheckIn, out var checkInTime))
+            {
+                return Results.BadRequest(new { message = "Giờ vào (Check-in) không hợp lệ." });
+            }
+
+            TimeOnly? checkOutTime = null;
+            if (!string.IsNullOrWhiteSpace(request.CheckOut) && TimeOnly.TryParse(request.CheckOut, out var parsedCheckOut))
+            {
+                checkOutTime = parsedCheckOut;
+                if (checkOutTime.Value <= checkInTime)
+                {
+                    return Results.BadRequest(new { message = "Giờ ra (Check-out) phải sau giờ vào." });
+                }
+            }
+
+            var employees = await db.Employees
+                .Include(e => e.Shift)
+                .Where(e => request.EmployeeIds.Contains(e.Id))
+                .ToListAsync();
+
+            if (employees.Count == 0)
+            {
+                return Results.NotFound(new { message = "Không tìm thấy nhân viên nào phù hợp." });
+            }
+
+            var defaultProjectId = await db.Projects.Select(p => p.Id).FirstOrDefaultAsync();
+            int successCount = 0;
+            var noteText = $"[Chấm công bù hàng loạt] {request.Reason?.Trim()}";
+
+            foreach (var emp in employees)
+            {
+                var shiftId = request.ShiftId ?? emp.ShiftId;
+                var shift = shiftId.HasValue ? await db.Shifts.FindAsync(shiftId.Value) : emp.Shift;
+                var standardHours = shift?.TotalHours ?? 8.0;
+
+                double workedHours = 0;
+                double otHours = 0;
+
+                if (checkOutTime.HasValue)
+                {
+                    var duration = (checkOutTime.Value.ToTimeSpan() - checkInTime.ToTimeSpan()).TotalHours;
+                    workedHours = Math.Max(0, Math.Round(duration, 1));
+
+                    double ot = 0;
+                    if (shift != null && checkOutTime.Value.ToTimeSpan() > shift.EndTime)
+                    {
+                        ot = (checkOutTime.Value.ToTimeSpan() - shift.EndTime).TotalHours;
+                    }
+                    else if (workedHours > standardHours)
+                    {
+                        ot = workedHours - standardHours;
+                    }
+                    otHours = Math.Max(0, Math.Round(ot, 1));
+                }
+                else
+                {
+                    workedHours = standardHours;
+                }
+
+                var isLate = shift != null && checkInTime > TimeOnly.FromTimeSpan(shift.StartTime.Add(TimeSpan.FromMinutes(15)));
+                var status = isLate ? AttendanceStatus.Late : AttendanceStatus.Present;
+                var projectId = emp.ProjectId ?? defaultProjectId;
+
+                var existing = await db.Attendances
+                    .FirstOrDefaultAsync(a => a.EmployeeId == emp.Id && a.Date == date);
+
+                if (existing != null)
+                {
+                    existing.CheckInTime = checkInTime;
+                    existing.CheckOutTime = checkOutTime;
+                    existing.Status = status;
+                    existing.WorkedHours = workedHours;
+                    existing.OtHours = otHours;
+                    existing.Notes = noteText;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    existing = new Attendance
+                    {
+                        Id = Guid.NewGuid(),
+                        EmployeeId = emp.Id,
+                        ProjectId = projectId,
+                        ShiftId = shiftId ?? Guid.Empty,
+                        Date = date,
+                        CheckInTime = checkInTime,
+                        CheckOutTime = checkOutTime,
+                        Status = status,
+                        WorkedHours = workedHours,
+                        OtHours = otHours,
+                        Notes = noteText,
+                        CheckInDevice = "Portal Admin (Chấm bù hàng loạt)",
+                        IsGpsVerified = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.Attendances.Add(existing);
+                }
+
+                successCount++;
+            }
+
+            await db.SaveChangesAsync();
+            Serilog.Log.Information("[BULK_MAKEUP_ATTENDANCE] Chấm công bù thành công cho {Count} nhân viên ngày {Date}", successCount, request.Date);
+
+            return Results.Ok(new
+            {
+                message = $"Đã chấm công bù thành công cho {successCount} nhân viên ngày {request.Date}!",
+                successCount
+            });
+        });
     }
 
     /// <summary>
@@ -606,6 +736,15 @@ public record BulkAttendanceItem(
 
 public record MakeupAttendanceRequest(
     Guid EmployeeId,
+    string Date,
+    string CheckIn,
+    string? CheckOut,
+    Guid? ShiftId,
+    string Reason
+);
+
+public record BulkMakeupAttendanceRequest(
+    List<Guid> EmployeeIds,
     string Date,
     string CheckIn,
     string? CheckOut,

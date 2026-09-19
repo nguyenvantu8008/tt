@@ -3,6 +3,7 @@ import axios from 'axios'
 import AppLayout from '@/components/layout/AppLayout'
 import type { AttendanceStatus } from '@/types/attendance'
 import { Button } from '@/components/ui/button'
+import BulkActionBar from '@/components/ui/BulkActionBar'
 import { 
   Calendar, 
   Search, 
@@ -16,7 +17,10 @@ import {
   ChevronRight,
   Loader2,
   PlusCircle,
-  History
+  History,
+  CheckSquare,
+  Square,
+  UserCheck
 } from 'lucide-react'
 import MakeupAttendanceModal from '@/components/attendance/MakeupAttendanceModal'
 import AttendanceHistoryModal from '@/components/attendance/AttendanceHistoryModal'
@@ -63,10 +67,14 @@ export default function DailyAttendance() {
   const [makeupModalOpen, setMakeupModalOpen] = useState(false)
   const [selectedEmployeeForHistory, setSelectedEmployeeForHistory] = useState<BackendEmployee | null>(null)
 
+  // Multi-select rows state
+  const [selectedRowEmpIds, setSelectedRowEmpIds] = useState<string[]>([])
+
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL')
   const [selectedShiftId, setSelectedShiftId] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+
 
   // Status mapping colors & labels
   const STATUS_CONFIG: Record<string, { label: string, color: string, badgeBg: string }> = {
@@ -234,6 +242,31 @@ export default function DailyAttendance() {
     }
   }
 
+  // Row selection helpers
+  const toggleSelectRow = (empId: string) => {
+    setSelectedRowEmpIds(prev =>
+      prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId]
+    )
+  }
+
+  const toggleSelectAllRows = (visibleList: BackendEmployee[]) => {
+    const visibleIds = visibleList.map(e => e.id)
+    const isAll = visibleIds.length > 0 && visibleIds.every(id => selectedRowEmpIds.includes(id))
+    if (isAll) {
+      setSelectedRowEmpIds(prev => prev.filter(id => !visibleIds.includes(id)))
+    } else {
+      setSelectedRowEmpIds(prev => Array.from(new Set([...prev, ...visibleIds])))
+    }
+  }
+
+  const handleBulkApprove = (status: AttendanceStatus) => {
+    if (selectedRowEmpIds.length === 0) return
+    selectedRowEmpIds.forEach(id => {
+      handleUpdateStatus(id, status)
+    })
+    setSelectedRowEmpIds([])
+  }
+
   // Filter employees
   const filteredEmployees = employees.filter(emp => {
     const matchesProject = selectedProjectId === 'ALL' || emp.projectId === selectedProjectId
@@ -242,6 +275,7 @@ export default function DailyAttendance() {
                           emp.code.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesProject && matchesShift && matchesSearch
   })
+
 
   // Summary counts
   const presentCount = records.filter(r => r.status === 'PRESENT').length
@@ -439,6 +473,19 @@ export default function DailyAttendance() {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleSelectAllRows(filteredEmployees)}
+                        className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                      >
+                        {selectedRowEmpIds.length > 0 && filteredEmployees.length > 0 && filteredEmployees.every(e => selectedRowEmpIds.includes(e.id)) ? (
+                          <CheckSquare className="h-4 w-4 text-indigo-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-300 hover:text-slate-500" />
+                        )}
+                      </button>
+                    </th>
                     <th className="py-3 px-4">Nhân viên</th>
                     <th className="py-3 px-3">Dự án BPO</th>
                     <th className="py-3 px-3">Ca kíp</th>
@@ -466,9 +513,23 @@ export default function DailyAttendance() {
                       notes: ''
                     }
                     const statusConf = STATUS_CONFIG[record.status] || STATUS_CONFIG.PRESENT
+                    const isSelected = selectedRowEmpIds.includes(emp.id)
 
                     return (
-                      <tr key={emp.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={emp.id} className={`hover:bg-slate-50/60 transition-colors ${isSelected ? 'bg-indigo-50/25' : ''}`}>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectRow(emp.id)}
+                            className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4 text-indigo-600" />
+                            ) : (
+                              <Square className="h-4 w-4 text-slate-300 hover:text-slate-500" />
+                            )}
+                          </button>
+                        </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <img 
@@ -572,9 +633,13 @@ export default function DailyAttendance() {
         <MakeupAttendanceModal
           isOpen={makeupModalOpen}
           onClose={() => setMakeupModalOpen(false)}
-          onSuccess={fetchData}
+          onSuccess={() => {
+            fetchData()
+            setSelectedRowEmpIds([])
+          }}
           employees={employees}
           shifts={shifts}
+          initialEmployeeIds={selectedRowEmpIds}
         />
 
         {/* Modal Lịch sử chấm công nhân viên */}
@@ -584,7 +649,25 @@ export default function DailyAttendance() {
           employee={selectedEmployeeForHistory}
         />
 
+        {/* Floating Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedRowEmpIds.length}
+          onClearSelection={() => setSelectedRowEmpIds([])}
+          onBulkAttendance={() => setMakeupModalOpen(true)}
+          attendanceLabel="Chấm bù đã chọn"
+        >
+          <Button
+            size="sm"
+            onClick={() => handleBulkApprove('PRESENT')}
+            className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <UserCheck className="h-3.5 w-3.5" />
+            <span>Duyệt có mặt ({selectedRowEmpIds.length})</span>
+          </Button>
+        </BulkActionBar>
+
       </div>
     </AppLayout>
   )
 }
+
