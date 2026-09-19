@@ -195,6 +195,110 @@ public static class DatabaseSeeder
                     logger.LogInformation("Seeded {Count} employee user accounts with default password '123456'.", usersToAdd.Count);
                 }
             }
+
+            // 8. Seed Default PayrollSetting
+            if (!await context.PayrollSettings.AnyAsync())
+            {
+                var defaultSetting = new PayrollSetting
+                {
+                    Id = Guid.NewGuid(),
+                    StandardHoursPerDay = 8.0,
+                    StandardWorkDaysPerMonth = 26.0,
+                    OtNormalDayMultiplier = 1.5,
+                    OtWeekendMultiplier = 2.0,
+                    OtHolidayMultiplier = 3.0,
+                    SocialInsuranceEmployeeRate = 0.105,
+                    SocialInsuranceEmployerRate = 0.215,
+                    RoundingPrecision = 1,
+                    Currency = "VND",
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.PayrollSettings.Add(defaultSetting);
+                await context.SaveChangesAsync();
+                logger.LogInformation("Seeded default PayrollSetting.");
+            }
+
+            // 9. Seed Salary Policies for 8 standard employees (demonstrating all 4 salary types)
+            if (!await context.SalaryPolicies.AnyAsync())
+            {
+                var employees = await context.Employees.ToListAsync();
+                var policies = new List<SalaryPolicy>();
+                var startOfYear = new DateOnly(2026, 1, 1);
+
+                foreach (var emp in employees)
+                {
+                    var policy = new SalaryPolicy
+                    {
+                        Id = Guid.NewGuid(),
+                        EmployeeId = emp.Id,
+                        StandardHoursPerDay = 8.0,
+                        StandardWorkDaysPerMonth = 26.0,
+                        EffectiveFrom = startOfYear,
+                        EffectiveTo = null,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    switch (emp.Code)
+                    {
+                        case "BPO-1001":
+                            policy.SalaryType = SalaryType.DailyAttendance;
+                            policy.DailyAttendanceRate = 500000m;
+                            policy.Note = "Lương theo công dự án Shopee (500.000 đ/công)";
+                            break;
+                        case "BPO-1002":
+                            policy.SalaryType = SalaryType.Hourly;
+                            policy.HourlyRate = 50000m;
+                            policy.Note = "Lương theo giờ kiểm duyệt TikTok (50.000 đ/giờ)";
+                            break;
+                        case "BPO-1003":
+                            policy.SalaryType = SalaryType.DailyCalendar;
+                            policy.DailyCalendarRate = 300000m;
+                            policy.Note = "Lương theo ngày trực nhập liệu VPBank (300.000 đ/ngày)";
+                            break;
+                        case "BPO-1004":
+                            policy.SalaryType = SalaryType.Monthly;
+                            policy.MonthlySalary = 12000000m;
+                            policy.ProrationMethod = MonthlyProrationMethod.StandardWorkDays;
+                            policy.Note = "Lương tháng Kỹ sư Helpdesk (12.000.000 đ/tháng, prorate 26 công)";
+                            break;
+                        case "BPO-1005":
+                            policy.SalaryType = SalaryType.DailyAttendance;
+                            policy.DailyAttendanceRate = 450000m;
+                            policy.Note = "Lương theo công CSKH Shopee (450.000 đ/công)";
+                            break;
+                        case "BPO-1006":
+                            policy.SalaryType = SalaryType.Hourly;
+                            policy.HourlyRate = 55000m;
+                            policy.Note = "Lương theo giờ kiểm duyệt ca tối TikTok (55.000 đ/giờ)";
+                            break;
+                        case "BPO-1007":
+                            policy.SalaryType = SalaryType.DailyCalendar;
+                            policy.DailyCalendarRate = 320000m;
+                            policy.Note = "Lương theo ngày CSKH Grab (320.000 đ/ngày)";
+                            break;
+                        case "BPO-1008":
+                            policy.SalaryType = SalaryType.Monthly;
+                            policy.MonthlySalary = 15000000m;
+                            policy.ProrationMethod = MonthlyProrationMethod.StandardWorkDays;
+                            policy.Note = "Lương tháng Trưởng nhóm thẩm định VPBank (15.000.000 đ/tháng)";
+                            break;
+                        default:
+                            policy.SalaryType = SalaryType.DailyAttendance;
+                            policy.DailyAttendanceRate = 400000m;
+                            break;
+                    }
+
+                    policies.Add(policy);
+                }
+
+                if (policies.Count > 0)
+                {
+                    context.SalaryPolicies.AddRange(policies);
+                    await context.SaveChangesAsync();
+                    logger.LogInformation("Seeded initial Salary Policies for {Count} employees across 4 salary types.", policies.Count);
+                }
+            }
         }
         catch (Exception ex)
         {

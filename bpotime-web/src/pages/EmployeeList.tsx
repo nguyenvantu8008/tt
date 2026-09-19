@@ -22,7 +22,10 @@ import {
   Square,
   Edit3,
   CalendarPlus,
-  ShieldCheck
+  ShieldCheck,
+  Coins,
+  History,
+  DollarSign
 } from 'lucide-react'
 import { logClientError } from '@/lib/clientLogger'
 
@@ -85,6 +88,30 @@ export default function EmployeeList() {
   const [editShiftId, setEditShiftId] = useState('')
   const [editProjectId, setEditProjectId] = useState('')
   const [editStatus, setEditStatus] = useState('ACTIVE')
+
+  // Salary Policy & History state
+  const [editSalaryType, setEditSalaryType] = useState('DailyAttendance')
+  const [editSalaryRate, setEditSalaryRate] = useState('500000')
+  const [editStandardHours, setEditStandardHours] = useState(8)
+  const [editStandardWorkDays, setEditStandardWorkDays] = useState(26)
+  const [editProrationMethod, setEditProrationMethod] = useState('StandardWorkDays')
+  const [editEffectiveFrom, setEditEffectiveFrom] = useState(new Date().toISOString().split('T')[0])
+  const [editEffectiveTo, setEditEffectiveTo] = useState('')
+  const [editSalaryNote, setEditSalaryNote] = useState('')
+
+  // Salary History Modal
+  const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [salaryHistory, setSalaryHistory] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Bulk Salary Modal
+  const [bulkSalaryOpen, setBulkSalaryOpen] = useState(false)
+  const [bulkSalaryType, setBulkSalaryType] = useState('DailyAttendance')
+  const [bulkSalaryRate, setBulkSalaryRate] = useState('500000')
+  const [bulkStandardHours, setBulkStandardHours] = useState(8)
+  const [bulkStandardWorkDays, setBulkStandardWorkDays] = useState(26)
+  const [bulkEffectiveFrom, setBulkEffectiveFrom] = useState(new Date().toISOString().split('T')[0])
+  const [bulkSalaryNote, setBulkSalaryNote] = useState('Thiết lập lương hàng loạt')
 
   const fetchEmployees = async () => {
     try {
@@ -225,8 +252,8 @@ export default function EmployeeList() {
     }
   }
 
-  // Mở modal sửa
-  const openEditModal = (emp: any) => {
+  // Mở modal sửa & tải chính sách lương
+  const openEditModal = async (emp: any) => {
     setEditingEmp(emp)
     setEditCode(emp.code)
     setEditName(emp.fullName)
@@ -238,9 +265,84 @@ export default function EmployeeList() {
     setEditProjectId(emp.projectId || '')
     setEditStatus(emp.status || 'ACTIVE')
     setEditModalOpen(true)
+
+    // Load active salary policy
+    try {
+      const policyRes = await axios.get(`/api/employees/${emp.id}/salary-policy`)
+      if (policyRes.data.hasPolicy && policyRes.data.policy) {
+        const pol = policyRes.data.policy
+        setEditSalaryType(pol.salaryType || 'DailyAttendance')
+        setEditSalaryRate(pol.rate?.toString() || '500000')
+        setEditStandardHours(pol.standardHoursPerDay || 8)
+        setEditStandardWorkDays(pol.standardWorkDaysPerMonth || 26)
+        setEditProrationMethod(pol.prorationMethod || 'StandardWorkDays')
+        setEditEffectiveFrom(pol.effectiveFrom || new Date().toISOString().split('T')[0])
+        setEditEffectiveTo(pol.effectiveTo || '')
+        setEditSalaryNote(pol.note || '')
+      } else {
+        setEditSalaryType('DailyAttendance')
+        setEditSalaryRate('500000')
+        setEditStandardHours(8)
+        setEditStandardWorkDays(26)
+        setEditProrationMethod('StandardWorkDays')
+        setEditEffectiveFrom(new Date().toISOString().split('T')[0])
+        setEditEffectiveTo('')
+        setEditSalaryNote('')
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải chính sách lương:', err)
+    }
   }
 
-  // Lưu chỉnh sửa nhân viên
+  // Xem lịch sử lương
+  const openSalaryHistory = async (empId: string) => {
+    try {
+      setLoadingHistory(true)
+      setHistoryModalOpen(true)
+      const res = await axios.get(`/api/employees/${empId}/salary-history`)
+      setSalaryHistory(res.data || [])
+    } catch (err: any) {
+      alert('Không thể tải lịch sử điều chỉnh lương.')
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  // Xử lý lưu thiết lập lương hàng loạt
+  const handleBulkSalarySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedEmpIds.length === 0) return
+    const rateNum = parseFloat(bulkSalaryRate.toString().replace(/\D/g, ''))
+    if (!rateNum || rateNum <= 0) {
+      alert('Vui lòng nhập mức lương hợp lệ.')
+      return
+    }
+
+    try {
+      setBulkLoading(true)
+      const res = await axios.post('/api/salary-policies/bulk', {
+        employeeIds: selectedEmpIds,
+        salaryType: bulkSalaryType,
+        rate: rateNum,
+        standardHoursPerDay: bulkStandardHours,
+        standardWorkDaysPerMonth: bulkStandardWorkDays,
+        effectiveFrom: bulkEffectiveFrom || null,
+        note: bulkSalaryNote
+      })
+
+      alert(res.data.message || `Đã thiết lập chính sách lương cho ${selectedEmpIds.length} nhân sự!`)
+      setBulkSalaryOpen(false)
+      setSelectedEmpIds([])
+      await fetchEmployees()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Có lỗi khi thiết lập lương hàng loạt.'
+      alert(msg)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  // Lưu chỉnh sửa nhân viên & chính sách lương
   const handleUpdateEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingEmp || !editName) return
@@ -259,9 +361,24 @@ export default function EmployeeList() {
         status: editStatus
       })
 
+      // Save salary policy
+      const rateNum = parseFloat(editSalaryRate.toString().replace(/\D/g, ''))
+      if (rateNum > 0) {
+        await axios.post(`/api/employees/${editingEmp.id}/salary-policy`, {
+          salaryType: editSalaryType,
+          rate: rateNum,
+          standardHoursPerDay: editStandardHours,
+          standardWorkDaysPerMonth: editStandardWorkDays,
+          prorationMethod: editProrationMethod,
+          effectiveFrom: editEffectiveFrom || null,
+          effectiveTo: editEffectiveTo || null,
+          note: editSalaryNote
+        })
+      }
+
       setEditModalOpen(false)
       await fetchEmployees()
-      alert('Cập nhật thông tin nhân viên thành công!')
+      alert('Cập nhật thông tin và chính sách lương nhân sự thành công!')
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Lỗi khi cập nhật nhân viên.'
       alert(msg)
@@ -270,6 +387,7 @@ export default function EmployeeList() {
       setSubmitting(false)
     }
   }
+
 
   // Xóa nhân viên
   const handleDeleteEmployee = async (emp: any) => {
@@ -786,6 +904,141 @@ export default function EmployeeList() {
                   </select>
                 </div>
 
+                {/* THÔNG TIN LƯƠNG & CHẾ ĐỘ */}
+                <div className="bg-slate-50/90 rounded-2xl p-4 border border-indigo-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Coins className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-800">Thông tin Lương & Chế độ</span>
+                    </div>
+                    {editingEmp && (
+                      <button
+                        type="button"
+                        onClick={() => openSalaryHistory(editingEmp.id)}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                        Lịch sử điều chỉnh
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Phương thức tính lương */}
+                  <div>
+                    <label className="font-semibold text-xs text-slate-700 block mb-1.5">
+                      Phương thức tính lương:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'DailyAttendance', label: 'Theo công', unit: 'đ/công' },
+                        { id: 'Hourly', label: 'Theo giờ', unit: 'đ/giờ' },
+                        { id: 'DailyCalendar', label: 'Theo ngày', unit: 'đ/ngày' },
+                        { id: 'Monthly', label: 'Theo tháng', unit: 'đ/tháng' }
+                      ].map(type => (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={() => setEditSalaryType(type.id)}
+                          className={`p-2 rounded-xl border text-xs font-bold transition-all text-center cursor-pointer ${
+                            editSalaryType === type.id
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div>{type.label}</div>
+                          <div className={`text-[10px] font-normal ${editSalaryType === type.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                            {type.unit}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mức lương động */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-xs text-slate-700 block mb-1">
+                        Mức lương ({
+                          editSalaryType === 'Hourly' ? 'VNĐ / giờ' :
+                          editSalaryType === 'DailyAttendance' ? 'VNĐ / công' :
+                          editSalaryType === 'DailyCalendar' ? 'VNĐ / ngày' : 'VNĐ / tháng'
+                        }) *
+                      </label>
+                      <input 
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={editSalaryRate} 
+                        onChange={e => setEditSalaryRate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        placeholder="Ví dụ: 500000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-xs text-slate-700 block mb-1">
+                        {editSalaryType === 'Monthly' ? 'Công chuẩn / tháng' : 'Giờ chuẩn / ngày'}
+                      </label>
+                      {editSalaryType === 'Monthly' ? (
+                        <input 
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={editStandardWorkDays} 
+                          onChange={e => setEditStandardWorkDays(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                          placeholder="26"
+                        />
+                      ) : (
+                        <input 
+                          type="number"
+                          min="1"
+                          max="24"
+                          step="0.5"
+                          value={editStandardHours} 
+                          onChange={e => setEditStandardHours(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                          placeholder="8"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ngày hiệu lực */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-xs text-slate-700 block mb-1">Từ ngày:</label>
+                      <input 
+                        type="date"
+                        value={editEffectiveFrom} 
+                        onChange={e => setEditEffectiveFrom(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-xs text-slate-700 block mb-1">Đến ngày (Tùy chọn):</label>
+                      <input 
+                        type="date"
+                        value={editEffectiveTo} 
+                        onChange={e => setEditEffectiveTo(e.target.value)}
+                        placeholder="Không giới hạn"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Ghi chú */}
+                  <div>
+                    <input 
+                      type="text"
+                      value={editSalaryNote} 
+                      onChange={e => setEditSalaryNote(e.target.value)}
+                      placeholder="Ghi chú điều chỉnh lương (nếu có)..."
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
                 <div className="pt-4 flex items-center justify-end gap-2.5 border-t">
                   <Button 
                     type="button" 
@@ -939,6 +1192,245 @@ export default function EmployeeList() {
           initialEmployeeIds={selectedEmpIds}
         />
 
+        {/* Modal Lịch Sử Lương */}
+        {historyModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl border border-slate-100 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-9 w-9 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <History className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Lịch sử Điều chỉnh Lương</h3>
+                    <p className="text-xs text-slate-500">Nhân viên: <strong>{editingEmp?.code} - {editingEmp?.fullName}</strong></p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setHistoryModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="py-4 overflow-y-auto flex-1">
+                {loadingHistory ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                    <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mb-2" />
+                    <p className="text-xs">Đang nạp lịch sử lương...</p>
+                  </div>
+                ) : salaryHistory.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    Chưa có lịch sử điều chỉnh lương nào.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {salaryHistory.map((h: any, idx: number) => (
+                      <div 
+                        key={h.id || idx} 
+                        className={`p-3.5 rounded-2xl border ${h.isActive ? 'bg-indigo-50/20 border-indigo-200 ring-2 ring-indigo-500/10' : 'bg-slate-50/50 border-slate-200/80'}`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${
+                              h.salaryType === 'Hourly' ? 'bg-amber-100 text-amber-800' :
+                              h.salaryType === 'DailyAttendance' ? 'bg-blue-100 text-blue-800' :
+                              h.salaryType === 'DailyCalendar' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {h.salaryTypeName}
+                            </span>
+                            <span className="text-sm font-black text-slate-900 font-mono">
+                              {Number(h.rate || 0).toLocaleString('vi-VN')} đ
+                              <span className="text-xs font-normal text-slate-500 ml-1">
+                                {h.salaryType === 'Hourly' ? '/ giờ' :
+                                 h.salaryType === 'DailyAttendance' ? '/ công' :
+                                 h.salaryType === 'DailyCalendar' ? '/ ngày' : '/ tháng'}
+                              </span>
+                            </span>
+                          </div>
+                          {h.isActive ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                              Đang áp dụng
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+                              Đã kết thúc
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-600 flex items-center justify-between">
+                          <span>
+                            Hiệu lực: <strong>{h.effectiveFrom}</strong> {h.effectiveTo ? `đến ${h.effectiveTo}` : '→ Hiện tại'}
+                          </span>
+                          {h.note && <span className="text-slate-500 italic text-[11px]">{h.note}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 text-right">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setHistoryModalOpen(false)}
+                  className="text-xs font-bold"
+                >
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Thiết Lập Lương Hàng Loạt */}
+        {bulkSalaryOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-100 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Coins className="h-5 w-5 text-emerald-600" />
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    Thiết lập Lương hàng loạt ({selectedEmpIds.length} nhân sự)
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setBulkSalaryOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkSalarySubmit} className="space-y-4">
+                {/* Chọn phương thức */}
+                <div>
+                  <label className="font-semibold text-xs text-slate-700 block mb-1.5">
+                    Phương thức tính lương:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'DailyAttendance', label: 'Theo công', unit: 'đ/công' },
+                      { id: 'Hourly', label: 'Theo giờ', unit: 'đ/giờ' },
+                      { id: 'DailyCalendar', label: 'Theo ngày', unit: 'đ/ngày' },
+                      { id: 'Monthly', label: 'Theo tháng', unit: 'đ/tháng' }
+                    ].map(type => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setBulkSalaryType(type.id)}
+                        className={`p-2 rounded-xl border text-xs font-bold text-center cursor-pointer ${
+                          bulkSalaryType === type.id
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div>{type.label}</div>
+                        <div className={`text-[10px] font-normal ${bulkSalaryType === type.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                          {type.unit}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mức lương */}
+                <div>
+                  <label className="font-semibold text-xs text-slate-700 block mb-1">
+                    Mức lương ({
+                      bulkSalaryType === 'Hourly' ? 'VNĐ / giờ' :
+                      bulkSalaryType === 'DailyAttendance' ? 'VNĐ / công' :
+                      bulkSalaryType === 'DailyCalendar' ? 'VNĐ / ngày' : 'VNĐ / tháng'
+                    }) *
+                  </label>
+                  <input 
+                    type="number"
+                    required
+                    min="1"
+                    step="1000"
+                    value={bulkSalaryRate}
+                    onChange={e => setBulkSalaryRate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    placeholder="Ví dụ: 500000"
+                  />
+                </div>
+
+                {/* Ngày hiệu lực */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-xs text-slate-700 block mb-1">Từ ngày:</label>
+                    <input 
+                      type="date"
+                      required
+                      value={bulkEffectiveFrom}
+                      onChange={e => setBulkEffectiveFrom(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-xs text-slate-700 block mb-1">
+                      {bulkSalaryType === 'Monthly' ? 'Công chuẩn/tháng' : 'Giờ chuẩn/ngày'}
+                    </label>
+                    {bulkSalaryType === 'Monthly' ? (
+                      <input 
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={bulkStandardWorkDays}
+                        onChange={e => setBulkStandardWorkDays(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                    ) : (
+                      <input 
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={bulkStandardHours}
+                        onChange={e => setBulkStandardHours(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Ghi chú */}
+                <div>
+                  <label className="font-semibold text-xs text-slate-700 block mb-1">Ghi chú:</label>
+                  <input 
+                    type="text"
+                    value={bulkSalaryNote}
+                    onChange={e => setBulkSalaryNote(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setBulkSalaryOpen(false)}
+                    className="text-xs font-bold"
+                  >
+                    Hủy
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    size="sm" 
+                    disabled={bulkLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                  >
+                    {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Coins className="h-4 w-4 mr-1" />}
+                    Áp dụng cho {selectedEmpIds.length} nhân sự
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Floating Bulk Action Bar */}
         <BulkActionBar
           selectedCount={selectedEmpIds.length}
@@ -950,7 +1442,18 @@ export default function EmployeeList() {
           attendanceLabel="Chấm công bù"
           deleteLabel="Xóa đã chọn"
           loading={bulkLoading}
-        />
+        >
+          <Button
+            size="sm"
+            onClick={() => setBulkSalaryOpen(true)}
+            disabled={bulkLoading}
+            className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Coins className="h-3.5 w-3.5" />
+            <span>Thiết lập lương ({selectedEmpIds.length})</span>
+          </Button>
+        </BulkActionBar>
+
 
       </div>
     </AdminLayout>

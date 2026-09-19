@@ -30,4 +30,7 @@ public class Employee
     public User? User { get; set; }
     public ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
     public ICollection<LeaveRequest> LeaveRequests { get; set; } = new List<LeaveRequest>();
+    public ICollection<SalaryPolicy> SalaryPolicies { get; set; } = new List<SalaryPolicy>();
+    public ICollection<PayrollRecord> PayrollRecords { get; set; } = new List<PayrollRecord>();
 }
+

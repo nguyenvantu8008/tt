@@ -37,6 +37,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<BPOTime.Application.Payroll.IPayrollCalculationService, BPOTime.Application.Payroll.PayrollCalculationService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -76,13 +77,23 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Seed database
+// Migrate and Seed database
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await dbContext.Database.MigrateAsync();
+        logger.LogInformation("Database migration applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not apply database migrations automatically. Please ensure PostgreSQL is running.");
+    }
     await DatabaseSeeder.SeedAsync(dbContext, logger);
 }
+
 
 // Authentication Endpoints
 app.MapPost("/api/auth/login", async (
@@ -138,6 +149,8 @@ app.MapShiftEndpoints();
 app.MapEmployeeEndpoints();
 app.MapAttendanceEndpoints();
 app.MapGeoEndpoints();
+app.MapSalaryPolicyEndpoints();
+app.MapPayrollEndpoints();
 
 var summaries = new[]
 {

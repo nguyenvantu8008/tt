@@ -18,6 +18,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Shift> Shifts { get; set; } = null!;
     public DbSet<Attendance> Attendances { get; set; } = null!;
     public DbSet<LeaveRequest> LeaveRequests { get; set; } = null!;
+    public DbSet<SalaryPolicy> SalaryPolicies { get; set; } = null!;
+    public DbSet<PayrollSetting> PayrollSettings { get; set; } = null!;
+    public DbSet<PayrollPeriod> PayrollPeriods { get; set; } = null!;
+    public DbSet<PayrollRecord> PayrollRecords { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

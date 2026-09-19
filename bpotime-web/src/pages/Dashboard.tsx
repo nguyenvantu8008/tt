@@ -17,7 +17,8 @@ import {
   CalendarDays,
   MapPin,
   ExternalLink,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Coins
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [shifts, setShifts] = useState<any[]>([])
   const [todayAttendance, setTodayAttendance] = useState<any[]>([])
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DONE'>('ALL')
+  const [payrollStats, setPayrollStats] = useState<any>(null)
 
   // Quick punch state for current employee
   const [currentEmployee, setCurrentEmployee] = useState<any>(null)
@@ -47,17 +49,19 @@ export default function Dashboard() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [empRes, projRes, shiftRes, attRes] = await Promise.all([
+      const [empRes, projRes, shiftRes, attRes, payStatsRes] = await Promise.all([
         axios.get('/api/employees'),
         axios.get('/api/projects'),
         axios.get('/api/shifts'),
-        axios.get('/api/attendance/today')
+        axios.get('/api/attendance/today'),
+        axios.get('/api/payroll/stats').catch(() => ({ data: null }))
       ])
 
       const emps = empRes.data || []
       const projs = projRes.data || []
       const sfts = shiftRes.data || []
       const atts = attRes.data || []
+      setPayrollStats(payStatsRes?.data || null)
 
       setEmployees(emps)
       setProjects(projs)
@@ -260,6 +264,74 @@ export default function Dashboard() {
           </div>
 
         </div>
+
+        {/* Row: Salary Method Distribution Widget */}
+        {payrollStats && (
+          <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-indigo-600" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Phân bố Phương thức Tính Lương Nhân sự
+                </h3>
+              </div>
+              <Link 
+                to="/admin/payroll" 
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Mở Payroll Wizard</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-blue-800 block">THEO CÔNG</span>
+                  <span className="text-xl font-black text-blue-900">{payrollStats.dailyAttendance || 0}</span>
+                  <span className="text-[10px] text-blue-600 ml-1">người</span>
+                </div>
+                <div className="h-7 w-7 rounded-lg bg-blue-200/60 text-blue-800 flex items-center justify-center text-xs font-black">
+                  C
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-amber-800 block">THEO GIỜ</span>
+                  <span className="text-xl font-black text-amber-900">{payrollStats.hourly || 0}</span>
+                  <span className="text-[10px] text-amber-600 ml-1">người</span>
+                </div>
+                <div className="h-7 w-7 rounded-lg bg-amber-200/60 text-amber-800 flex items-center justify-center text-xs font-black">
+                  G
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-purple-800 block">THEO NGÀY</span>
+                  <span className="text-xl font-black text-purple-900">{payrollStats.dailyCalendar || 0}</span>
+                  <span className="text-[10px] text-purple-600 ml-1">người</span>
+                </div>
+                <div className="h-7 w-7 rounded-lg bg-purple-200/60 text-purple-800 flex items-center justify-center text-xs font-black">
+                  N
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-emerald-800 block">THEO THÁNG</span>
+                  <span className="text-xl font-black text-emerald-900">{payrollStats.monthly || 0}</span>
+                  <span className="text-[10px] text-emerald-600 ml-1">người</span>
+                </div>
+                <div className="h-7 w-7 rounded-lg bg-emerald-200/60 text-emerald-800 flex items-center justify-center text-xs font-black">
+                  T
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* Row 2: Punch Clock Widget (Clean & Minimalist) + Projects Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
