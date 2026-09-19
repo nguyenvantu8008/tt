@@ -78,7 +78,6 @@ export default function MonthlyTimesheet() {
 
     matrixData.forEach(row => {
       const dayValues = daysInMonth.map(d => {
-        if (d.isWeekend) return 'OFF'
         const dayStat = row.dailyStatuses?.[d.day]
         if (dayStat) {
           if (dayStat.status === 'PRESENT') return 'X'
@@ -89,6 +88,7 @@ export default function MonthlyTimesheet() {
           if (dayStat.status === 'OFF') return 'OFF'
           return dayStat.status
         }
+        if (d.isWeekend) return 'OFF'
         const isPast = isPastMonth || (isCurrentMonth && d.day <= now.getDate())
         return isPast ? '—' : ''
       }).join(',')
@@ -271,16 +271,6 @@ export default function MonthlyTimesheet() {
                         </td>
 
                         {daysInMonth.map(d => {
-                          if (d.isWeekend) {
-                            return (
-                              <td key={d.day} className="py-1 px-0.5 border-r border-slate-100 bg-slate-50/40">
-                                <span className="inline-block w-6 h-6 leading-6 rounded-md text-[10px] text-center text-slate-400 bg-slate-100/70">
-                                  OFF
-                                </span>
-                              </td>
-                            )
-                          }
-
                           const dayStat = emp.dailyStatuses?.[d.day]
                           let code = ''
                           let color = 'text-slate-300'
@@ -313,13 +303,16 @@ export default function MonthlyTimesheet() {
                               code = dayStat.status.slice(0, 1)
                               color = 'text-slate-700 bg-slate-100 font-bold'
                             }
+                          } else if (d.isWeekend) {
+                            code = 'OFF'
+                            color = 'text-slate-400 bg-slate-100/70'
                           } else {
                             code = isPast ? '—' : '·'
                             color = isPast ? 'text-slate-400 font-medium' : 'text-slate-200'
                           }
 
                           return (
-                            <td key={d.day} className="py-1 px-0.5 border-r border-slate-100 text-[11px]">
+                            <td key={d.day} className={`py-1 px-0.5 border-r border-slate-100 text-[11px] ${d.isWeekend && !dayStat ? 'bg-slate-50/40' : ''}`}>
                               <span className={`inline-block w-6 h-6 leading-6 rounded-md text-[10px] text-center ${color}`}>
                                 {code}
                               </span>

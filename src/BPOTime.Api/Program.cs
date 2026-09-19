@@ -95,16 +95,19 @@ app.MapPost("/api/auth/login", async (
         return Results.BadRequest(new { message = "Email và mật khẩu không được để trống." });
     }
 
-    var normalizedEmail = request.Email.Trim().ToLower();
+    var identifier = request.Email.Trim().ToLower();
     var user = await dbContext.Users
         .Include(u => u.UserRoles)
         .ThenInclude(ur => ur.Role)
         .Include(u => u.Employee)
-        .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+        .FirstOrDefaultAsync(u => 
+            u.Email.ToLower() == identifier || 
+            u.Username.ToLower() == identifier ||
+            (u.Employee != null && u.Employee.Code.ToLower() == identifier));
 
     if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
     {
-        return Results.Json(new { message = "Email hoặc mật khẩu không chính xác." }, statusCode: StatusCodes.Status401Unauthorized);
+        return Results.Json(new { message = "Email, mã nhân viên hoặc mật khẩu không chính xác." }, statusCode: StatusCodes.Status401Unauthorized);
     }
 
     if (!user.IsActive)

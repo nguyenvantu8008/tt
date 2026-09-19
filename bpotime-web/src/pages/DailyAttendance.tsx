@@ -87,6 +87,8 @@ export default function DailyAttendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
 
 
+  const [attendanceFilter, setAttendanceFilter] = useState<'ALL' | 'CHECKED' | 'UNCHECKED'>('ALL')
+
   // Status mapping colors & labels
   const STATUS_CONFIG: Record<string, { label: string, color: string, badgeBg: string }> = {
     PRESENT: { label: 'Có mặt', color: 'text-emerald-700', badgeBg: 'bg-emerald-50 border-emerald-200' },
@@ -95,6 +97,7 @@ export default function DailyAttendance() {
     LEAVE: { label: 'Nghỉ phép', color: 'text-indigo-700', badgeBg: 'bg-indigo-50 border-indigo-200' },
     ABSENT: { label: 'Vắng mặt', color: 'text-rose-700', badgeBg: 'bg-rose-50 border-rose-200' },
     OFF: { label: 'Nghỉ ca', color: 'text-slate-600', badgeBg: 'bg-slate-100 border-slate-200' },
+    UNCHECKED: { label: 'Chưa điểm danh', color: 'text-rose-600', badgeBg: 'bg-rose-50 border-rose-200' },
   }
 
   // Fetch real data from backend
@@ -177,6 +180,7 @@ export default function DailyAttendance() {
             return {
               ...rec,
               status: newStatus,
+              checkIn: newStatus === 'UNCHECKED' ? null : (rec.checkIn || '08:00'),
               workedHours: newStatus === 'PRESENT' ? 8 : (newStatus === 'HALFDAY' ? 4 : (newStatus === 'LATE' ? 7.5 : 0))
             }
           }
@@ -190,10 +194,10 @@ export default function DailyAttendance() {
           projectId: emp?.projectId || '',
           shiftId: emp?.shiftId || '',
           date: selectedDate,
-          checkIn: '08:00',
+          checkIn: newStatus === 'UNCHECKED' ? null : '08:00',
           checkOut: null,
           status: newStatus,
-          workedHours: newStatus === 'PRESENT' ? 8 : 4,
+          workedHours: newStatus === 'PRESENT' ? 8 : (newStatus === 'HALFDAY' ? 4 : (newStatus === 'LATE' ? 7.5 : 0)),
           otHours: 0,
           notes: ''
         }
@@ -278,21 +282,34 @@ export default function DailyAttendance() {
     setSelectedRowEmpIds([])
   }
 
+  // Check attendance status helper
+  const isEmployeeCheckedIn = (empId: string) => {
+    const r = records.find(rec => rec.employeeId === empId)
+    return !!r && (r.checkIn !== null || (r.status && r.status !== 'UNCHECKED' && r.status !== 'OFF'))
+  }
+
+  // Summary counts
+  const checkedEmployees = employees.filter(emp => isEmployeeCheckedIn(emp.id))
+  const uncheckedEmployees = employees.filter(emp => !isEmployeeCheckedIn(emp.id))
+  const checkedCount = checkedEmployees.length
+  const uncheckedCount = uncheckedEmployees.length
+
+  const lateCount = records.filter(r => r.status === 'LATE').length
+  const leaveCount = records.filter(r => r.status === 'LEAVE' || r.status === 'HALFDAY').length
+
   // Filter employees
   const filteredEmployees = employees.filter(emp => {
     const matchesProject = selectedProjectId === 'ALL' || emp.projectId === selectedProjectId
     const matchesShift = selectedShiftId === 'ALL' || emp.shiftId === selectedShiftId
     const matchesSearch = emp.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           emp.code.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    const isChecked = isEmployeeCheckedIn(emp.id)
+    if (attendanceFilter === 'CHECKED' && !isChecked) return false
+    if (attendanceFilter === 'UNCHECKED' && isChecked) return false
+
     return matchesProject && matchesShift && matchesSearch
   })
-
-
-  // Summary counts
-  const presentCount = records.filter(r => r.status === 'PRESENT').length
-  const lateCount = records.filter(r => r.status === 'LATE').length
-  const leaveCount = records.filter(r => r.status === 'LEAVE').length
-  const absentCount = records.filter(r => r.status === 'ABSENT').length
 
   return (
     <AppLayout 
@@ -303,13 +320,31 @@ export default function DailyAttendance() {
         
         {/* Top Metric Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs flex items-center justify-between">
+          <div 
+            onClick={() => setAttendanceFilter('CHECKED')}
+            className={`bg-white border rounded-xl p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all hover:border-emerald-300 ${attendanceFilter === 'CHECKED' ? 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50/20' : 'border-slate-200/80'}`}
+          >
             <div>
-              <p className="text-xs text-slate-500 font-medium">Có mặt hôm nay</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">{presentCount}</p>
+              <p className="text-xs text-slate-500 font-medium">Đã chấm công hôm nay</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">
+                {checkedCount} <span className="text-xs font-normal text-slate-400">/ {employees.length}</span>
+              </p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div 
+            onClick={() => setAttendanceFilter('UNCHECKED')}
+            className={`bg-white border rounded-xl p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all hover:border-rose-300 ${attendanceFilter === 'UNCHECKED' ? 'ring-2 ring-rose-500 border-rose-400 bg-rose-50/20' : 'border-slate-200/80'}`}
+          >
+            <div>
+              <p className="text-xs text-rose-500 font-bold">Chưa điểm danh (Cần gọi)</p>
+              <p className="text-2xl font-bold text-rose-600 mt-1">{uncheckedCount}</p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <XCircle className="h-5 w-5" />
             </div>
           </div>
 
@@ -325,21 +360,11 @@ export default function DailyAttendance() {
 
           <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 font-medium">Nghỉ phép có lương</p>
+              <p className="text-xs text-slate-500 font-medium">Nghỉ phép / Nửa ngày</p>
               <p className="text-2xl font-bold text-indigo-600 mt-1">{leaveCount}</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <FileText className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Vắng mặt không phép</p>
-              <p className="text-2xl font-bold text-rose-600 mt-1">{absentCount}</p>
-            </div>
-            <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <XCircle className="h-5 w-5" />
             </div>
           </div>
         </div>
@@ -445,6 +470,52 @@ export default function DailyAttendance() {
             </div>
           </div>
 
+          {/* Quick Status Filter Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+              <span className="text-xs font-semibold text-slate-500 mr-1 hidden sm:inline">Lọc theo:</span>
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  attendanceFilter === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Tất cả ({employees.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter('CHECKED')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  attendanceFilter === 'CHECKED'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Đã chấm công ({checkedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceFilter('UNCHECKED')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  attendanceFilter === 'UNCHECKED'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 animate-pulse'
+                }`}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                <span>Chưa điểm danh ({uncheckedCount})</span>
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-400 font-medium">
+              Hiển thị: <span className="font-bold text-slate-700">{filteredEmployees.length}</span> nhân sự
+            </div>
+          </div>
+
           {/* Filters & Search Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 text-xs">
             <div className="relative">
@@ -528,16 +599,16 @@ export default function DailyAttendance() {
                       date: selectedDate,
                       checkIn: null,
                       checkOut: null,
-                      status: 'PRESENT',
-                      workedHours: 8,
+                      status: 'UNCHECKED',
+                      workedHours: 0,
                       otHours: 0,
                       notes: ''
                     }
-                    const statusConf = STATUS_CONFIG[record.status] || STATUS_CONFIG.PRESENT
+                    const statusConf = STATUS_CONFIG[record.status] || STATUS_CONFIG.UNCHECKED
                     const isSelected = selectedRowEmpIds.includes(emp.id)
 
                     return (
-                      <tr key={emp.id} className={`hover:bg-slate-50/60 transition-colors ${isSelected ? 'bg-indigo-50/25' : ''}`}>
+                      <tr key={emp.id} className={`hover:bg-slate-50/60 transition-colors ${isSelected ? 'bg-indigo-50/25' : record.status === 'UNCHECKED' ? 'bg-rose-50/15' : ''}`}>
                         <td className="py-3 px-3 text-center">
                           <button
                             type="button"
@@ -586,7 +657,7 @@ export default function DailyAttendance() {
                               {record.checkIn}
                             </span>
                           ) : (
-                            <span className="text-slate-300">--:--</span>
+                            <span className="text-rose-400 font-bold">--:--</span>
                           )}
                         </td>
 
@@ -603,6 +674,7 @@ export default function DailyAttendance() {
                               ${statusConf.badgeBg} ${statusConf.color} focus:outline-hidden focus:ring-1 focus:ring-blue-500
                             `}
                           >
+                            <option value="UNCHECKED">⚪ Chưa điểm danh</option>
                             <option value="PRESENT">✓ Có mặt (1.0 công)</option>
                             <option value="LATE">⏱ Đi muộn</option>
                             <option value="HALFDAY">½ Nửa ngày (0.5)</option>

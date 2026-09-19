@@ -56,9 +56,9 @@ export default function Login() {
     }
   }
 
-  const handleQuickFill = (demoEmail: string) => {
-    setEmail(demoEmail)
-    setPassword('Admin@123')
+  const handleQuickFill = (demoAccount: string, demoPass = 'Admin@123') => {
+    setEmail(demoAccount)
+    setPassword(demoPass)
   }
 
   return (
@@ -146,7 +146,7 @@ export default function Login() {
           <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-200/80 p-8 sm:p-10">
             <div className="mb-6">
               <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Đăng Nhập</h2>
-              <p className="text-xs text-slate-500 mt-1.5 font-medium">Nhập thông tin tài khoản để truy cập bảng điều khiển</p>
+              <p className="text-xs text-slate-500 mt-1.5 font-medium">Đăng nhập bằng Email hoặc <strong>Mã nhân viên (VD: BPO-1001)</strong></p>
             </div>
 
             {errorMessage && (
@@ -159,7 +159,7 @@ export default function Login() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider" htmlFor="email">
-                  Email hoặc Tên đăng nhập
+                  Mã nhân viên hoặc Email
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -168,7 +168,7 @@ export default function Login() {
                   <Input 
                     id="email" 
                     type="text" 
-                    placeholder="admin@bpotime.com" 
+                    placeholder="VD: BPO-1001 hoặc admin@bpotime.com" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 h-11 text-xs rounded-xl bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
@@ -182,6 +182,7 @@ export default function Login() {
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider" htmlFor="password">
                     Mật khẩu
                   </label>
+                  <span className="text-[11px] text-slate-400">NV mặc định: 123456</span>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -220,28 +221,47 @@ export default function Login() {
 
             {/* Quick Demo Access Bar */}
             <div className="mt-6 pt-5 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-slate-400">Tài khoản mẫu:</span>
-                <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">Bấm để điền</span>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-semibold text-slate-400">Tài khoản mẫu (Bấm thử):</span>
+                <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">1-Click Đăng nhập</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('admin@bpotime.com')}
+                  onClick={() => handleQuickFill('admin@bpotime.com', 'Admin@123')}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50/60 hover:border-indigo-200 text-left transition-colors cursor-pointer"
                 >
-                  <p className="text-[11px] font-bold text-slate-800">Admin</p>
+                  <p className="text-[11px] font-bold text-slate-800">Admin Quản trị</p>
                   <p className="text-[10px] text-slate-400 truncate">admin@bpotime.com</p>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('nv.anh@bpotime.com')}
+                  onClick={() => handleQuickFill('BPO-1001', '123456')}
+                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 text-left transition-colors cursor-pointer"
+                >
+                  <p className="text-[11px] font-bold text-emerald-800">NV BPO-1001</p>
+                  <p className="text-[10px] text-emerald-600 truncate">Mật khẩu: 123456</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('BPO-1002', '123456')}
+                  className="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-left transition-colors cursor-pointer"
+                >
+                  <p className="text-[11px] font-bold text-blue-800">NV BPO-1002</p>
+                  <p className="text-[10px] text-blue-600 truncate">Mật khẩu: 123456</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('nv.anh@bpotime.com', 'Admin@123')}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50/60 hover:border-indigo-200 text-left transition-colors cursor-pointer"
                 >
-                  <p className="text-[11px] font-bold text-slate-800">Nhân viên BPO</p>
+                  <p className="text-[11px] font-bold text-slate-800">Email NV.Anh</p>
                   <p className="text-[10px] text-slate-400 truncate">nv.anh@bpotime.com</p>
                 </button>
               </div>
+              <p className="mt-2 text-[10px] text-slate-400 text-center">
+                Mọi nhân viên có thể đăng nhập bằng chính <strong>Mã nhân viên</strong> của mình (Mật khẩu: <code>123456</code>).
+              </p>
             </div>
 
             <div className="mt-6 text-center text-[11px] text-slate-400">

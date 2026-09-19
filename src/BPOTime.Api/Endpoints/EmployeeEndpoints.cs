@@ -76,6 +76,38 @@ public static class EmployeeEndpoints
             db.Employees.Add(employee);
             await db.SaveChangesAsync();
 
+            // Tự động tạo tài khoản đăng nhập cho nhân viên mới
+            var employeeRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "EMPLOYEE");
+            if (employeeRole != null)
+            {
+                var email = !string.IsNullOrWhiteSpace(employee.Email) 
+                    ? employee.Email.Trim().ToLower() 
+                    : $"{employee.Code.ToLower()}@bpotime.com";
+
+                var userExists = await db.Users.AnyAsync(u => u.Email.ToLower() == email || u.EmployeeId == employee.Id);
+                if (!userExists)
+                {
+                    var newUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        Username = employee.Code.ToLower(),
+                        Email = email,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                        EmployeeId = employee.Id,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    newUser.UserRoles.Add(new UserRole
+                    {
+                        UserId = newUser.Id,
+                        RoleId = employeeRole.Id
+                    });
+                    db.Users.Add(newUser);
+                    await db.SaveChangesAsync();
+                    Serilog.Log.Information("[USER_ACCOUNT_CREATED] Tự động tạo tài khoản đăng nhập cho nhân sự {Code}", employee.Code);
+                }
+            }
+
             Serilog.Log.Information("[EMPLOYEE_CREATED] Tạo mới nhân viên {Code} - {Name}", employee.Code, employee.FullName);
             return Results.Created($"/api/employees/{employee.Id}", employee);
         });
@@ -242,6 +274,73 @@ public static class EmployeeEndpoints
                 message = $"Đã xử lý {employees.Count} nhân viên: Xóa hoàn toàn {deletedCount} người, chuyển sang lưu trữ {archivedCount} người do có dữ liệu chấm công.",
                 deletedCount,
                 archivedCount
+            });
+        });
+
+        // 7. Sync / Generate User Accounts for All Employees
+        group.MapPost("/sync-accounts", async (ApplicationDbContext db) =>
+        {
+            var employeeRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "EMPLOYEE");
+            if (employeeRole == null)
+            {
+                employeeRole = new Role
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "EMPLOYEE",
+                    Description = "Nhân viên BPO"
+                };
+                db.Roles.Add(employeeRole);
+                await db.SaveChangesAsync();
+            }
+
+            var allEmployees = await db.Employees.ToListAsync();
+            var existingUsers = await db.Users.ToListAsync();
+            var createdUsers = new List<User>();
+
+            foreach (var emp in allEmployees)
+            {
+                var hasUser = existingUsers.Any(u => u.EmployeeId == emp.Id || (!string.IsNullOrWhiteSpace(emp.Email) && u.Email.ToLower() == emp.Email.Trim().ToLower()));
+                if (!hasUser)
+                {
+                    var email = !string.IsNullOrWhiteSpace(emp.Email) 
+                        ? emp.Email.Trim().ToLower() 
+                        : $"{emp.Code.ToLower()}@bpotime.com";
+
+                    var newUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        Username = emp.Code.ToLower(),
+                        Email = email,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                        EmployeeId = emp.Id,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    newUser.UserRoles.Add(new UserRole
+                    {
+                        UserId = newUser.Id,
+                        RoleId = employeeRole.Id
+                    });
+
+                    db.Users.Add(newUser);
+                    existingUsers.Add(newUser);
+                    createdUsers.Add(newUser);
+                }
+            }
+
+            if (createdUsers.Count > 0)
+            {
+                await db.SaveChangesAsync();
+                Serilog.Log.Information("[ACCOUNTS_SYNCED] Đã đồng bộ tạo mới {Count} tài khoản nhân viên", createdUsers.Count);
+            }
+
+            return Results.Ok(new
+            {
+                message = $"Đã đồng bộ thành công! Tạo mới {createdUsers.Count} tài khoản đăng nhập.",
+                createdCount = createdUsers.Count,
+                totalEmployees = allEmployees.Count,
+                defaultPassword = "123456"
             });
         });
     }

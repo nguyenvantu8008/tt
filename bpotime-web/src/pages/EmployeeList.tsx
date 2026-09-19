@@ -21,7 +21,8 @@ import {
   CheckSquare,
   Square,
   Edit3,
-  CalendarPlus
+  CalendarPlus,
+  ShieldCheck
 } from 'lucide-react'
 import { logClientError } from '@/lib/clientLogger'
 
@@ -32,6 +33,21 @@ export default function EmployeeList() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState('ALL')
+  const [syncingAccounts, setSyncingAccounts] = useState(false)
+
+  const handleSyncAccounts = async () => {
+    try {
+      setSyncingAccounts(true)
+      const res = await axios.post('/api/employees/sync-accounts')
+      alert(res.data.message || 'Đã đồng bộ tài khoản tự điểm danh thành công!')
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Lỗi khi đồng bộ tài khoản'
+      alert(msg)
+      await logClientError('SYNC_ACCOUNTS_ERROR', msg, err.message, '/employees')
+    } finally {
+      setSyncingAccounts(false)
+    }
+  }
 
   // Multi-select state
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([])
@@ -333,14 +349,36 @@ export default function EmployeeList() {
             </button>
           </div>
 
-          <Button 
-            size="sm" 
-            onClick={() => setModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/20 cursor-pointer"
-          >
-            <UserPlus className="h-4 w-4 mr-1.5" />
-            Thêm nhân viên mới
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              size="sm" 
+              onClick={handleSyncAccounts}
+              disabled={syncingAccounts}
+              className="border-indigo-200 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 font-bold text-xs rounded-xl shadow-2xs cursor-pointer"
+            >
+              {syncingAccounts ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  Đang đồng bộ...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4 mr-1.5 text-indigo-600" />
+                  Đồng bộ tài khoản tự điểm danh
+                </>
+              )}
+            </Button>
+
+            <Button 
+              size="sm" 
+              onClick={() => setModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/20 cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4 mr-1.5" />
+              Thêm nhân viên mới
+            </Button>
+          </div>
         </div>
 
         {/* Employee Cards Grid */}
@@ -444,6 +482,13 @@ export default function EmployeeList() {
                           style={{ backgroundColor: `${emp.projectColor || '#2563EB'}15`, color: emp.projectColor || '#2563EB' }}
                         >
                           {emp.projectCode || 'Chưa gán dự án'}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Đăng nhập:</span>
+                        <span className="font-mono font-bold text-indigo-600 bg-indigo-50/80 px-1.5 py-0.5 rounded border border-indigo-100" title="Đăng nhập tự dập thẻ bằng Mã nhân viên và mật khẩu 123456">
+                          {emp.code} • Pass: 123456
                         </span>
                       </div>
                     </div>
